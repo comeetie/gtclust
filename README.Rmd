@@ -1,0 +1,58 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# gtclust
+
+<!-- badges: start -->
+<!-- badges: end -->
+
+gtclust offers two functions `?geohclust_poly` and `?geohclust_graph` that enable the clustering of spatial data such as polygons with a hclust type approach but taking advantages of contiguity constraints. The contiguity naturally create a sparsely connected graph that can be leveraged to speed-up the calculations and deal with more than 30000 polygons in seconds.    
+
+## Installation
+
+You can install the development version of gtclust from [GitHub](https://github.com/) with:
+
+``` r
+# install.packages("devtools")
+devtools::install_github("comeetie/gtclust")
+```
+
+## Example
+
+This is a basic example, we first prepare some spatial polygons data, here the results at the municipality level in one french department for the  :
+
+```{r example-data,message=FALSE}
+library(gtclust)
+library(dplyr)
+library(sf)
+data("modesshare")
+```
+
+
+Do the clustering and use the classical function from `?hclust` (`?plot.hclust` and `?cutree`):
+
+```{r clustering,fig.show='hold',out.width="100%",fig.width=18,fig.height=8}
+hc=gtclust_poly(modesshare)
+plot(hc)
+cutree(hc,k=30) |> head(20)
+```
+
+
+You may also use the `?geocutree` function which build directly a spatial data.frame with the clustering results: 
+```{r plot}
+modesshare_agg = geocutree(hc,k=500) |> mutate(total = sum(c_across(nodep:tcom)))
+```
+
+

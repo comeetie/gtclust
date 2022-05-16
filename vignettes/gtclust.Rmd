@@ -1,0 +1,58 @@
+---
+title: "gtclust"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{gtclust}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup,message=FALSE}
+library(gtclust)
+library(sf)
+library(dplyr)
+library(tibble)
+library(ggplot2)
+library(ggpubr)
+```
+
+
+```{r,fig.show='hold',out.width="90%",fig.width=6,fig.height=6}
+data("modesshare")
+```
+
+```{r,fig.show='hold',out.width="90%",fig.width=16,fig.height=8}
+res=gtclust_poly(modesshare,"ward",scaling="zscore")
+plot(res)
+```
+
+
+```{r}
+idf_agg=geocutree(res,k=80) |> rowwise(cl) |> mutate(total = sum(c_across(nodep:tcom)))
+idf = modesshare |> rowwise(CODE_IRIS) |> mutate(total = sum(c_across(nodep:tcom)))
+```
+
+
+```{r,fig.show='hold',out.width="100%",fig.width=8,fig.height=5.1,echo=FALSE}
+map1=ggplot(idf)+geom_sf(aes(fill=tcom/total),size=0.2)+theme_bw()+scale_fill_distiller("Gauche :",palette = "Reds",direction = 1,limits=c(0,0.75))
+map2=ggplot(idf_agg |> st_centroid())+geom_sf(data=idf_agg,fill="white",color="black")+geom_sf(aes(color=tcom/total,size=total))+theme_bw()+scale_color_distiller("Gauche :",palette = "Reds",direction = 1,limits=c(0,0.75))+scale_size_area(max_size = 9)
+ggarrange(map1,map2,nrow = 1,common.legend = TRUE)
+```
+
+
+
+
+```{r,cache=TRUE}
+#res=geohclust_poly(modesshare,method = "ward")
+
+#fr_agg2k=geocutree(res,2000)
+
+#fr_agg10k=geocutree(res,1000)
+```
