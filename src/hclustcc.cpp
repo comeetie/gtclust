@@ -6,14 +6,14 @@ using namespace Rcpp;
 
 
 
-void print_pq(std::multimap<float,std::pair<int, int>,std::less<float>> priority_queue){
+void print_pq(std::multimap<double,std::pair<int, int>,std::less<double>> priority_queue){
   for(auto it=priority_queue.begin();it!=priority_queue.end();it++){
     std::pair<int,int> edge = it->second;
     Rcout << edge.first << " - " << edge.second << ":" << it->first << std::endl;
   }
 }
 
-void print_pqhead(std::multimap<float,std::pair<int, int>,std::less<float>> priority_queue){
+void print_pqhead(std::multimap<double,std::pair<int, int>,std::less<double>> priority_queue){
   int i =0;
   for(auto it=priority_queue.begin();it!=priority_queue.end();it++){
     std::pair<int,int> edge = it->second;
@@ -41,14 +41,22 @@ GTMethod::GTMethod * init_method(List method_obj){
   }else if(method_name=="chisq"){
     method = new GTMethod::chisq(); 
   }else if(method_name=="bayes_mom"){
-    float beta = method_obj["beta"];
+    double beta = method_obj["beta"];
     method = new GTMethod::bayes_mom(beta); 
+  }else if(method_name=="bayes_dgmm"){
+    double kappa = method_obj["kappa"];
+    double tau = method_obj["tau"];
+    double beta = method_obj["beta"];
+    NumericVector mu = method_obj["mu"];
+    method = new GTMethod::bayes_dgmm(kappa,tau,beta,mu); 
+  }else{
+    stop("Aggregation method not found.");
   }
   return method;
 }
 
 //[[Rcpp::export]]
-List hclustcc_cpp(const List nb,const NumericMatrix X,List method_obj) {
+List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
 
   
   
@@ -61,9 +69,8 @@ List hclustcc_cpp(const List nb,const NumericMatrix X,List method_obj) {
   // TODO test and check chi2 
   
   int V = X.nrow();
+  bool is_bayesian = method_obj.inherits("bayesian_gtmethod");
 
-  // cst added in case of collision
-  // float collision_eps=1e-12;
   
   // compute data statistics needed for priors or distance
   GTMethod::GTMethod * method = init_method(method_obj);
@@ -72,7 +79,7 @@ List hclustcc_cpp(const List nb,const NumericMatrix X,List method_obj) {
   
   // data-structure creation
   std::vector<node> graph(2*V-1);
-  std::multimap<float,std::pair<int, int>,std::less<float>> priority_queue;
+  std::multimap<double,std::pair<int, int>,std::less<double>> priority_queue;
   for(int i=0; i<nb.length(); ++i){
     if(nb[i]!=R_NilValue) {
       NumericVector nbi = as<NumericVector>(nb[i]);
@@ -81,7 +88,7 @@ List hclustcc_cpp(const List nb,const NumericMatrix X,List method_obj) {
         int j = nbi[n];
         if(i!=j){
           node vnode = method->init_node(j,X(j,_));
-          float d = method->dist(cnode,vnode);
+          double d = method->dist(cnode,vnode);
           cnode.neibs.insert(std::make_pair(j,d));
           if(i<j){
             priority_queue.insert(std::make_pair(d,std::make_pair(i,j)));
@@ -97,7 +104,8 @@ List hclustcc_cpp(const List nb,const NumericMatrix X,List method_obj) {
   // Lets Merge !
   NumericMatrix merge(V-1,2);
   NumericVector height(V-1);
-  
+  NumericVector stat_test(V-1);
+  NumericVector Ll(V-1);
   for(int imerge=0;imerge<(V-1);imerge++){
     
 
@@ -139,13 +147,16 @@ List hclustcc_cpp(const List nb,const NumericMatrix X,List method_obj) {
     
     // create a new node
     node new_node = method->merge(node_id,node_g,node_h,height[imerge]);
-    
+    if(is_bayesian){
+      stat_test[imerge] = new_node.stats["r"];
+      Ll[imerge] = new_node.stats["L"];
+    }
     // update the graph and priority queue
     for(auto nei_g = node_g.neibs.begin();nei_g!=node_g.neibs.end();nei_g++){
       
       int i = g;
       int j = nei_g->first;
-      float v = nei_g->second;
+      double v = nei_g->second;
       // old link deletion in priority_queue
       auto search = priority_queue.equal_range(v);
       for (auto s = search.first; s != search.second; ++s){
@@ -161,7 +172,7 @@ List hclustcc_cpp(const List nb,const NumericMatrix X,List method_obj) {
       // new links in graph
       if(j!=h){
         // distance calculation
-        float d = method->dist(new_node,graph[j]);
+        double d = method->dist(new_node,graph[j]);
         new_node.neibs.insert(std::make_pair(j,d));
         graph[j].neibs.insert(std::make_pair(node_id,d));
       }
@@ -174,7 +185,7 @@ List hclustcc_cpp(const List nb,const NumericMatrix X,List method_obj) {
       
       int i = h;
       int j = nei_h->first;
-      float v = nei_h->second;
+      double v = nei_h->second;
 
       // old link deletion in priority_queue
       auto search = priority_queue.equal_range(v);
@@ -193,7 +204,7 @@ List hclustcc_cpp(const List nb,const NumericMatrix X,List method_obj) {
       // new links in graphs
       if(j!=g){
         
-        float d = method->dist(new_node,graph[j]);
+        double d = method->dist(new_node,graph[j]);
         new_node.neibs.insert(std::make_pair(j,d));
         graph[j].neibs.insert(std::make_pair(node_id,d));
       }
@@ -206,8 +217,8 @@ List hclustcc_cpp(const List nb,const NumericMatrix X,List method_obj) {
     
     // add the new possible merges in the priority queue
     for(auto nei = new_node.neibs.begin();nei!=new_node.neibs.end();nei++){
-      float d = nei->second;
-      float j = nei->first;
+      double d = nei->second;
+      double j = nei->first;
       priority_queue.insert(std::make_pair(d,std::make_pair(j,node_id)));
     }
 
@@ -221,9 +232,13 @@ List hclustcc_cpp(const List nb,const NumericMatrix X,List method_obj) {
   CharacterVector ch = colnames(X);
   colnames(centers) = ch;
   delete method;
-
-  return List::create(Named("merge",merge),Named("height",height),Named("data",X),Named("centers",centers));
-  
+  List res;
+  if(is_bayesian){
+    res =  List::create(Named("merge",merge),Named("height",height),Named("data",X),Named("centers",centers),Named("Ll",Ll),Named("test.stat",stat_test));
+  }else{
+    res = List::create(Named("merge",merge),Named("height",height),Named("data",X),Named("centers",centers));
+  }
+  return res;
 }
 
 

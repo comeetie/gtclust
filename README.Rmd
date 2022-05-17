@@ -18,7 +18,36 @@ knitr::opts_chunk$set(
 <!-- badges: start -->
 <!-- badges: end -->
 
-gtclust offers two functions `?geohclust_poly` and `?geohclust_graph` that enable the clustering of spatial data such as polygons with a hclust type approach but taking advantages of contiguity constraints. The contiguity naturally create a sparsely connected graph that can be leveraged to speed-up the calculations and deal with more than 30000 polygons in seconds.    
+gtclust builds on top of `?gtclust_graph` that enable hierarchical clustering and takes advantage of contiguity constraints induced by a graph. The contiguity naturally create a sparsely connected graph that can be leveraged to speed-up the calculations from $O(N^2D)$ to $O(M(log(M)+D))$ and deal with more than 10^5 data-points in seconds. To ease, the contiguity graph creation process, gtclust offers several interfaces to easily works with geographical, temporal (the gt in gtclust comes from here) or sequential data:
+
+- `?gtclust_temp` to cluster sequential data, the contiguity graph follow from the data ordering 
+- `?gtclust_poly` to cluster data associated to geographical polygons, the contiguity graph follow from shared boundaries
+- `?gtclust_delaunay` to cluster data associated to geographical points, the contiguity graph is derived from the Delaunay triangulation of the points 
+- `?gtclust_knn` to cluster data associated to geographical points, the contiguity graph is derived from the symmetrized knn graph of the geographical points  
+- `?gtclust_dist` to cluster data associated to geographical points, the contiguity graph is derived from a threshold over distance the geographical points 
+
+Several aggregations methods are available with all of the aforementioned interface. The classical linkage criterions that available in `hclust` : 
+
+- `ward`
+- `centroid`
+- `median`
+
+But `gtclust` also offers, two bayesian criterion that enable model selection :  
+
+- `bayes_mom` mixture of multinomials for counts data
+- `bayes_dgmm` diagonal mixture models for continuous features
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## Installation
 
@@ -37,22 +66,191 @@ This is a basic example, we first prepare some spatial polygons data, here the r
 library(gtclust)
 library(dplyr)
 library(sf)
-data("modesshare")
+data("modesshare.idf")
+
+modesshare.idf <- modesshare.idf |> 
+  rowwise(CODE_IRIS) |> 
+  mutate(total = sum(c_across(nodep:tcom)))
+
+modesshare.idf.percent = modesshare.idf |> 
+  filter(total!=0) |>
+  transmute(across(nodep:tcom,\(v){v/total})) 
+  
 ```
 
 
 Do the clustering and use the classical function from `?hclust` (`?plot.hclust` and `?cutree`):
 
 ```{r clustering,fig.show='hold',out.width="100%",fig.width=18,fig.height=8}
-hc=gtclust_poly(modesshare)
-plot(hc)
+hc=gtclust_poly(modesshare.idf.percent,method="ward")
+plot(hc,labels=FALSE)
 cutree(hc,k=30) |> head(20)
 ```
 
 
 You may also use the `?geocutree` function which build directly a spatial data.frame with the clustering results: 
-```{r plot}
-modesshare_agg = geocutree(hc,k=500) |> mutate(total = sum(c_across(nodep:tcom)))
+```{r geoagg}
+modesshare_agg = geocutree(hc,k=500)
+```
+
+```{r,echo=FALSE}
+theme_map <- function(...) {
+  theme_minimal() +
+  theme(
+    text = element_text( color = "#22211d"),
+    axis.line = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major = element_line(color = "#ffffff", size = 0.2),
+    panel.grid.minor = element_blank(),
+    plot.background = element_rect(fill = "#ffffff", color = NA), 
+    panel.background = element_rect(fill = "#ffffff", color = NA), 
+    legend.background = element_rect(fill = "#ffffff", color = NA),
+    panel.border = element_blank(),
+    ...
+  )
+}
+```
+
+```{r plot,fig.show='hold',out.width="100%",fig.width=14,fig.height=5,echo=FALSE}
+library(ggplot2)
+library(ggpubr)
+magg = ggplot(modesshare_agg)+
+  geom_sf(aes(fill=voiture*100),size=0)+
+  theme_map()+scale_fill_distiller("Car (%) :",palette = "Reds",direction = 1,limits=c(0,100))+
+  ggtitle(paste0("Clustering with ",nrow(modesshare_agg)," clusters"))
+
+mraw = ggplot(modesshare.idf.percent)+
+  geom_sf(aes(fill=voiture*100),size=0)+
+  theme_map()+
+  scale_fill_distiller("Car (%) :",palette = "Reds",direction = 1,limits=c(0,100))+
+  ggtitle(paste0("Raw data with ",nrow(modesshare.idf)," polygons"))
+
+ggarrange(mraw,magg,nrow = 1,common.legend = TRUE,legend="bottom")
 ```
 
 
+
+```{r plotparis,fig.show='hold',out.width="100%",fig.width=14,fig.height=5,echo=FALSE}
+modesshare.paris = modesshare.idf.percent|>filter(substr(CODE_IRIS,1,2)==75)
+env_paris=st_union(modesshare.paris) |> st_geometry()
+modesshare_agg_paris = st_intersection(modesshare_agg,env_paris)
+
+magg_paris = ggplot(modesshare_agg_paris)+
+  geom_sf(aes(fill=tcom*100),size=0)+
+  theme_map()+
+  scale_fill_distiller("Transit (%) :",palette = "Greens",direction = 1,limits=c(0,100))+
+  ggtitle(paste0("Clustering with ",nrow(modesshare_agg_paris)," polygons"))
+
+mraw_paris = ggplot(modesshare.paris)+
+  geom_sf(aes(fill=tcom*100),size=0)+
+  theme_map()+
+  scale_fill_distiller("Transit (%) :",palette = "Greens",direction = 1,limits=c(0,100))+
+  ggtitle(paste0("Raw data with ",nrow(modesshare.paris)," polygons"))
+
+ggarrange(mraw_paris,magg_paris,nrow = 1,common.legend = TRUE,legend="bottom")
+
+```
+
+```{r bench,warning=FALSE}
+library(microbenchmark)
+knngraph = function(df,k){
+  # build graph
+  xy = sf::st_coordinates(df)[,1:2]  
+  knn = RANN::nn2(xy,k=k)
+  # ensure symmetry and extract adjacency list from results
+  nb = rep(list(c()),nrow(df))
+  for (i in 1:nrow(xy)){
+    knei = setdiff(knn$nn.idx[i,],i)
+    nb[[i]]=unique(c(nb[[i]],knei))
+    for(j in knn$nn.idx[i,]){
+      nb[[j]]=unique(c(nb[[j]],i))
+    }
+  }
+  nb
+}
+
+delaunaygraph = function(df){
+  xy = sf::st_coordinates(df)[,1:2]
+  delaunay = RTriangle::triangulate(RTriangle::pslg(xy))
+  nb=rep(list(c()),nrow(df))
+  for (il in 1:nrow(delaunay$E)){
+    r = delaunay$E[il,]
+    nb[[r[1]]]=c(nb[[r[1]]],r[2])
+    nb[[r[2]]]=c(nb[[r[2]]],r[1])
+  }
+  nb
+}
+
+pts = modesshare.pts |> filter(DEP==75) |> st_union() |> st_geometry() |> st_centroid()
+distth = seq(50000,700000,by=50000)
+res=list()
+for (dt in distth){
+  modesshare.pts.sel = st_intersection(modesshare.pts,st_buffer(pts,dt))
+  
+  time=microbenchmark({
+      nb=knngraph(modesshare.pts.sel,5)
+  },times = 5)
+  res=c(res,list(data.frame(dt=dt,
+                            N=nrow(modesshare.pts.sel),
+                            M=sum(sapply(nb, length)),
+                            alg="knn",
+                            time=median(time$time))))
+  
+  time=microbenchmark({
+      hc=gtclust_graph(nb,modesshare.pts.sel)
+  },times = 5)
+  res=c(res,list(data.frame(dt=dt,
+                            N=nrow(modesshare.pts.sel),
+                            M=sum(sapply(nb, length)),
+                            alg="gtclust-knn",
+                            time=median(time$time))))
+  
+  
+  time=microbenchmark({
+      hc=gtclust_graph(nb,modesshare.pts.sel,method="bayes_mom")
+  },times = 5)
+  res=c(res,list(data.frame(dt=dt,
+                            N=nrow(modesshare.pts.sel),
+                            M=sum(sapply(nb, length)),
+                            alg="gtclust-knn-bayes",
+                            time=median(time$time))))
+  
+  time=microbenchmark({
+      nb=delaunaygraph(modesshare.pts.sel)
+  },times = 5)
+  res=c(res,list(data.frame(dt=dt,
+                            N=nrow(modesshare.pts.sel),
+                            M=sum(sapply(nb, length)),
+                            alg="delaunay",
+                            time=median(time$time))))
+  
+  time=microbenchmark({
+      hc=gtclust_graph(nb,modesshare.pts.sel)
+  },times = 5)
+  res=c(res,list(data.frame(dt=dt,
+                            N=nrow(modesshare.pts.sel),
+                            M=sum(sapply(nb, length)),
+                            alg="gtclust-delaunay",
+                            time=median(time$time))))
+  
+  time=microbenchmark({
+      hc=gtclust_graph(nb,modesshare.pts.sel,method="bayes_mom")
+  },times = 5)
+  res=c(res,list(data.frame(dt=dt,
+                            N=nrow(modesshare.pts.sel),
+                            M=sum(sapply(nb, length)),
+                            alg="gtclust-delaunay-bayes",
+                            time=median(time$time))))
+  
+}
+res.bench = do.call(rbind,res)
+```
+
+
+```{r benchplot}
+ggplot(res.bench)+geom_line(aes(x=N,y=time,group=alg,color=alg))+geom_point(aes(x=N,y=time,group=alg,color=alg))
+```

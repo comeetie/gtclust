@@ -25,18 +25,18 @@ library(ggpubr)
 
 
 ```{r,fig.show='hold',out.width="90%",fig.width=6,fig.height=6}
-data("modesshare")
+data("modesshare.idf")
 ```
 
 ```{r,fig.show='hold',out.width="90%",fig.width=16,fig.height=8}
-res=gtclust_poly(modesshare,"ward",scaling="zscore")
+res=gtclust_poly(modesshare.idf,"ward",scaling="zscore")
 plot(res)
 ```
 
 
 ```{r}
 idf_agg=geocutree(res,k=80) |> rowwise(cl) |> mutate(total = sum(c_across(nodep:tcom)))
-idf = modesshare |> rowwise(CODE_IRIS) |> mutate(total = sum(c_across(nodep:tcom)))
+idf = modesshare.idf |> rowwise(CODE_IRIS) |> mutate(total = sum(c_across(nodep:tcom)))
 ```
 
 

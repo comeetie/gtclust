@@ -11,13 +11,13 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // hclustcc_cpp
-List hclustcc_cpp(const List nb, const NumericMatrix X, List method_obj);
+List hclustcc_cpp(const List nb, const NumericMatrix& X, List method_obj);
 RcppExport SEXP _gtclust_hclustcc_cpp(SEXP nbSEXP, SEXP XSEXP, SEXP method_objSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const List >::type nb(nbSEXP);
-    Rcpp::traits::input_parameter< const NumericMatrix >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type X(XSEXP);
     Rcpp::traits::input_parameter< List >::type method_obj(method_objSEXP);
     rcpp_result_gen = Rcpp::wrap(hclustcc_cpp(nb, X, method_obj));
     return rcpp_result_gen;

@@ -20,16 +20,16 @@ archive_extract(archive= "./data-raw/contours-iris.7z",dir = "./data-raw/")
 
 iris=read_sf("./data-raw/CONTOURS-IRIS_2-1__SHP__FRA_2021-01-01/CONTOURS-IRIS/1_DONNEES_LIVRAISON_2021-06-00217/CONTOURS-IRIS_2-1_SHP_LAMB93_FXX-2021/CONTOURS-IRIS.shp")
 
-modesshare_idf = iris |> left_join(data.act,by=c("CODE_IRIS"="IRIS")) |>
+modesshare.idf.raw = iris |> left_join(data.act,by=c("CODE_IRIS"="IRIS")) |>
   filter(!is.na(nodep)) |>
   mutate(DEP=substr(CODE_IRIS,1,2)) |> 
   filter(DEP %in% c(75,77,78,91,92,93,95,94)) 
 
 library(rmapshaper)
 
-modesshare = ms_simplify(modesshare_idf,  keep=0.03) |> st_make_valid() |> st_cast("MULTIPOLYGON")
+modesshare.idf = ms_simplify(modesshare.idf.raw,  keep=0.6) |> st_make_valid() |> st_cast("MULTIPOLYGON")
 
-usethis::use_data(modesshare,overwrite = TRUE)
+usethis::use_data(modesshare.idf,overwrite = TRUE)
 
 system("rm -rf ./data-raw/CONTOURS-IRIS_2-1__SHP__FRA_2021-01-01")
 system("rm -rf ./data-raw/contours-iris.7z")

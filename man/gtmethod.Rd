@@ -6,7 +6,7 @@
 \alias{gtmethod_median}
 \alias{gtmethod_chisq}
 \alias{gtmethod_bayes_mom}
-\title{ward method for gtclust}
+\title{aggregation methods for gtclust}
 \usage{
 gtmethod_ward()
 
@@ -19,40 +19,24 @@ gtmethod_chisq()
 gtmethod_bayes_mom(beta = 1)
 }
 \arguments{
-\item{beta}{prior parameters for the dirichlet}
+\item{beta}{prior parameters for the dirichlet distribution}
 }
 \value{
 An object of class gtmethod
-
-An object of class gtmethod
-
-An object of class gtmethod
-
-An object of class gtmethod
-
-An object of class gtmethod
 }
 \description{
-ward method for gtclust
-
-ward method for gtclust
-
-ward method for gtclust
-
-ward method for gtclust
-
-ward method for gtclust
+aggregation methods for gtclust
 }
 \section{Functions}{
 \itemize{
 \item \code{gtmethod_ward}: classical ward method
 
-\item \code{gtmethod_centroid}: classical entroid method
+\item \code{gtmethod_centroid}: classical centroid method
 
 \item \code{gtmethod_median}: classical median method
 
-\item \code{gtmethod_chisq}: chisq method
+\item \code{gtmethod_chisq}: chi-square method
 
-\item \code{gtmethod_bayes_mom}: bayesian mixture of multinomial
+\item \code{gtmethod_bayes_mom}: bayesian mixture of multinomials
 }}
 

@@ -4,7 +4,13 @@
     <loc>/404.html</loc>
   </url>
   <url>
+    <loc>/LICENSE-text.html</loc>
+  </url>
+  <url>
     <loc>/articles/geohclust.html</loc>
+  </url>
+  <url>
+    <loc>/articles/gtclust.html</loc>
   </url>
   <url>
     <loc>/articles/index.html</loc>
@@ -26,6 +32,30 @@
   </url>
   <url>
     <loc>/reference/geohclust_poly.html</loc>
+  </url>
+  <url>
+    <loc>/reference/gtclust.html</loc>
+  </url>
+  <url>
+    <loc>/reference/gtclust_delaunay.html</loc>
+  </url>
+  <url>
+    <loc>/reference/gtclust_dist.html</loc>
+  </url>
+  <url>
+    <loc>/reference/gtclust_graph.html</loc>
+  </url>
+  <url>
+    <loc>/reference/gtclust_knn.html</loc>
+  </url>
+  <url>
+    <loc>/reference/gtclust_poly.html</loc>
+  </url>
+  <url>
+    <loc>/reference/gtclust_temp.html</loc>
+  </url>
+  <url>
+    <loc>/reference/gtmethod.html</loc>
   </url>
   <url>
     <loc>/reference/index.html</loc>

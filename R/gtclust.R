@@ -235,7 +235,7 @@ gtclust_poly=function(df,method="ward",adjacency="rook",scaling="raw"){
 gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
   
   
-  if(is.character(method) & !(method %in% c("ward","centroid","median","chisq","bayes_mom"))){
+  if(is.character(method) & !(method %in% c("ward","centroid","median","chisq","bayes_mom","bayes_dgmm"))){
     stop("'method' not recognized")
   }
   
@@ -311,10 +311,10 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
                 method=method$method,
                 dist.method="euclidean",
                 data=res$data,
-                centers=res$centers,
-                teststatistic=res$teststatistic,
-                Ll=res$Ll,
-                Lt=res$Lt)
+                centers=res$centers)
+  if(methods::is(method,"bayesian_gtmethod")){
+    hc_res = c(hc_res,list(test.stat=exp(res$test.stat),Ll=res$Ll))
+  }
   class(hc_res)  <- "hclust"
 
   hc_res
@@ -408,7 +408,7 @@ build_geotree=function(merge,df){
 
 
 
-#' @title ward method for gtclust
+#' @title aggregation methods for gtclust
 #' @return An object of class gtmethod
 #' @describeIn gtmethod classical ward method
 #' @export
@@ -417,17 +417,14 @@ gtmethod_ward = function(){
             class = "gtmethod")
 }
 
-#' @title ward method for gtclust
-#' @return An object of class gtmethod
-#' @describeIn gtmethod classical entroid method
+#' @describeIn gtmethod classical centroid method
 #' @export
 gtmethod_centroid = function(){
   structure(list(method = "centroid"), 
             class = "gtmethod")
 }
 
-#' @title ward method for gtclust
-#' @return An object of class gtmethod
+
 #' @describeIn gtmethod classical median method
 #' @export
 gtmethod_median = function(){
@@ -435,23 +432,31 @@ gtmethod_median = function(){
             class = "gtmethod")
 }
 
-#' @title ward method for gtclust
-#' @return An object of class gtmethod
-#' @describeIn gtmethod chisq method
+#' @describeIn gtmethod chi-square method
 #' @export
 gtmethod_chisq = function(){
   structure(list(method = "chisq"), 
             class = "gtmethod")
 }
 
-#' @title ward method for gtclust
-#' @param beta prior parameters for the dirichlet
-#' @return An object of class gtmethod
-#' @describeIn gtmethod bayesian mixture of multinomial
+
+#' @param beta prior parameters for the dirichlet distribution 
+#' @describeIn gtmethod bayesian mixture of multinomials
 #' @export
 gtmethod_bayes_mom = function(beta = 1){
   structure(list(method = "bayes_mom",beta = beta), 
-            class = "gtmethod")
+            class = c("gtmethod","bayesian_gtmethod"))
+}
+
+#' @param tau Prior parameter (inverse variance), (default 0.01)
+#' @param kappa Prior parameter (gamma shape), (default to 1)
+#' @param beta Prior parameter (gamma rate), (default to NaN, in this case beta will be estimated from data as 0.1 time the mean of X columns variances)
+#' @param mu Prior for the means (vector of size D), (default to NaN, in this case mu will be estimated from data as the mean of X)
+#' @describeIn gtmethod bayesian diagonal gaussian mixture model
+#' @export
+gtmethod_bayes_dgmm = function(tau = 0.01, kappa = 1, beta = NaN, mu = as.matrix(NaN)){
+  structure(list(method = "bayes_dgmm",tau=tau,kappa=kappa,beta = beta,mu=mu), 
+            class = c("gtmethod","bayesian_gtmethod"))
 }
 
 

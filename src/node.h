@@ -12,8 +12,8 @@ struct node
   int size;
   List stats;
   NumericVector x;
-  float height;
-  std::map<int,float,std::greater<float>> neibs;
+  double height;
+  std::map<int,double,std::greater<double>> neibs;
 };
 
 #endif
