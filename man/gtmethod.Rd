@@ -6,6 +6,7 @@
 \alias{gtmethod_median}
 \alias{gtmethod_chisq}
 \alias{gtmethod_bayes_mom}
+\alias{gtmethod_bayes_dgmm}
 \title{aggregation methods for gtclust}
 \usage{
 gtmethod_ward()
@@ -17,9 +18,17 @@ gtmethod_median()
 gtmethod_chisq()
 
 gtmethod_bayes_mom(beta = 1)
+
+gtmethod_bayes_dgmm(tau = 0.01, kappa = 1, beta = NaN, mu = as.matrix(NaN))
 }
 \arguments{
-\item{beta}{prior parameters for the dirichlet distribution}
+\item{beta}{Prior parameter (gamma rate), (default to NaN, in this case beta will be estimated from data as 0.1 time the mean of X columns variances)}
+
+\item{tau}{Prior parameter (inverse variance), (default 0.01)}
+
+\item{kappa}{Prior parameter (gamma shape), (default to 1)}
+
+\item{mu}{Prior for the means (vector of size D), (default to NaN, in this case mu will be estimated from data as the mean of X)}
 }
 \value{
 An object of class gtmethod
@@ -38,5 +47,7 @@ aggregation methods for gtclust
 \item \code{gtmethod_chisq}: chi-square method
 
 \item \code{gtmethod_bayes_mom}: bayesian mixture of multinomials
+
+\item \code{gtmethod_bayes_dgmm}: bayesian diagonal gaussian mixture model
 }}
 

@@ -1,5 +1,6 @@
 ---
 output: github_document
+bibliography: references.bib
 ---
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
@@ -13,39 +14,31 @@ knitr::opts_chunk$set(
 )
 ```
 
-# gtclust
+# GTclust : A package for fast clustering of spatial or temporal data with contiguity constrained hierarchical clustering
 
 <!-- badges: start -->
 <!-- badges: end -->
 
-gtclust builds on top of `?gtclust_graph` that enable hierarchical clustering and takes advantage of contiguity constraints induced by a graph. The contiguity naturally create a sparsely connected graph that can be leveraged to speed-up the calculations from $O(N^2D)$ to $O(M(log(M)+D))$ and deal with more than 10^5 data-points in seconds. To ease, the contiguity graph creation process, gtclust offers several interfaces to easily works with geographical, temporal (the gt in gtclust comes from here) or sequential data:
+GTclust builds on top of `?gtclust_graph` it's main function to offers fast clustering of spatial or temporal data with contiguity constrained hierarchical clustering. `?gtclust_graph` is a quite classical hierarchical clustering but which is designed to takes advantage of contiguity constraints defined with a graph between data-points. The contiguity naturally create a sparsely connected graph that can be leveraged to speed-up the calculations, thanks to efficient data-structure [@Ambroise2019], from $O(N^2D)$ to $O(M(log(M)+D))$, with $M$ the number of links in the contiguity graph. This allow to process 10^5 data-points in seconds. To reach these performances, the dissimilarity matrix can't be computed and the algorithm resort to a more simple "stored data" approach [@Murtagh2012], which even if known to be less efficient in the general case are well fitted for the contiguity constrained problems. This approach allows to have a low spatial complexity of $O(N)$ but is less efficient with `single` and `complete` linkage criterions. Furthermore, this make the use of non-euclidean dissimilarity measures impossible. Still one may used the classical linkage criterion compatible with a storage based approach and available in `hclust` or `agnes` : 
+
+- `ward` minimum within-cluster variance 
+- `centroid` or WPGMC
+- `median` or UPGMC
+
+Furthermore, GTclust also offers two Bayesian linkage criterion [@Heller2005] that enable model selection :  
+
+- `bayes_mom` mixture of Multinomial for counts data
+- `bayes_dgmm` diagonal Gaussian mixture models for continuous features
+
+To ease, the contiguity graph creation process, gtclust offers several interfaces to easily works with geographical, temporal (the gt in GTclust comes from here) or sequential data:
 
 - `?gtclust_temp` to cluster sequential data, the contiguity graph follow from the data ordering 
 - `?gtclust_poly` to cluster data associated to geographical polygons, the contiguity graph follow from shared boundaries
-- `?gtclust_delaunay` to cluster data associated to geographical points, the contiguity graph is derived from the Delaunay triangulation of the points 
-- `?gtclust_knn` to cluster data associated to geographical points, the contiguity graph is derived from the symmetrized knn graph of the geographical points  
+- `?gtclust_delaunay` to cluster data associated to geographical points, the contiguity graph is derived from the Delaunay triangulation of the points (thanks to the `? RTriangle` package [@RTriangle])
+- `?gtclust_knn` to cluster data associated to geographical points, the contiguity graph is derived from the symmetrized knn graph of the geographical points (thanks to the `?RANN` package [@RANN])
 - `?gtclust_dist` to cluster data associated to geographical points, the contiguity graph is derived from a threshold over distance the geographical points 
 
-Several aggregations methods are available with all of the aforementioned interface. The classical linkage criterion available in `hclust` : 
-
-- `ward`
-- `centroid`
-- `median`
-
-Note that, ut `gtclust` also offers, two bayesian criterion that enable model selection :  
-
-- `bayes_mom` mixture of multinomials for counts data
-- `bayes_dgmm` diagonal mixture models for continuous features
-
-
-
-
-
-
-
-
-
-
+It also offers several methods dedicated ease the manipulations of results with spatial data thanks to a tight integration with the sf package [@Pebesma2018].
 
 
 
@@ -60,18 +53,22 @@ devtools::install_github("comeetie/gtclust")
 
 ## Example
 
-This is a basic example, we first prepare some spatial polygons data, here the results at the municipality level in one french department for the  :
+This is a basic example, we first prepare some spatial polygons data, here we used modes share in several municipalities around Paris.
 
 ```{r example-data,message=FALSE}
 library(gtclust)
 library(dplyr)
 library(sf)
+library(ggplot2)
+library(ggpubr)
 data("modesshare.idf")
 
+# compute row sums
 modesshare.idf <- modesshare.idf |> 
   rowwise(CODE_IRIS) |> 
   mutate(total = sum(c_across(nodep:tcom)))
 
+# normalize per rows
 modesshare.idf.percent = modesshare.idf |> 
   filter(total!=0) |>
   transmute(across(nodep:tcom,\(v){v/total})) 
@@ -79,11 +76,13 @@ modesshare.idf.percent = modesshare.idf |>
 ```
 
 
-Do the clustering and use the classical function from `?hclust` (`?plot.hclust` and `?cutree`):
+To do the clustering, we use the `poly` flavor of GTclust and just provide the polygons data.frame we had just prepared. Then we may use the classical function from `?hclust`, `?cutree` to cut the dendrogram at a specific level of the `?plot.gtclust` method to draw the dendrogram:
 
-```{r clustering,fig.show='hold',out.width="100%",fig.width=18,fig.height=8}
+```{r clustering,fig.show='hold',out.width="100%",fig.width=12,fig.height=6}
 hc=gtclust_poly(modesshare.idf.percent,method="ward")
-plot(hc,labels=FALSE)
+plot(hc)+
+  ggtitle("Dendrogram of the modesshare.idf dataset","with ward linkage")+
+  scale_y_continuous("Within-cluster intertia")
 cutree(hc,k=30) |> head(20)
 ```
 
@@ -104,7 +103,7 @@ theme_map <- function(...) {
     axis.ticks = element_blank(),
     axis.title.x = element_blank(),
     axis.title.y = element_blank(),
-    panel.grid.major = element_line(color = "#ffffff", size = 0.2),
+    panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
     plot.background = element_rect(fill = "#ffffff", color = NA), 
     panel.background = element_rect(fill = "#ffffff", color = NA), 
@@ -116,8 +115,7 @@ theme_map <- function(...) {
 ```
 
 ```{r plot,fig.show='hold',out.width="100%",fig.width=14,fig.height=5,echo=FALSE}
-library(ggplot2)
-library(ggpubr)
+
 magg = ggplot(modesshare_agg)+
   geom_sf(aes(fill=voiture*100),size=0)+
   theme_map()+scale_fill_distiller("Car (%) :",palette = "Reds",direction = 1,limits=c(0,100))+
@@ -171,3 +169,5 @@ ggplot(res.bench|>mutate(time=time*10^-9))+
   geom_text(data=res.bench|>mutate(time=time*10^-9)|>filter(N==max(N)),aes(x=N,y=time,label=alg,color=alg),nudge_x = 500,hjust = "left",vjust="midlle")+theme_bw()+scale_x_continuous(expand = c(0.2,1.5))+scale_color_discrete(guide ="none")+scale_y_continuous("Time (s)")+ggtitle("Running times","of graph building and gtclust variants.")
 
 ```
+
+# References

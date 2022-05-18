@@ -1,4 +1,4 @@
-#' gtclust: A package for clustering spatial or temporal data with contiguity constrained hierarchical clustering
+#' gtclust: A package for fast clustering of spatial or temporal data with contiguity constrained hierarchical clustering
 #'
 #' The mypackage package provides three categories of important functions:
 #' gtclust_graph, gtclust_temp, gt_poly.
@@ -287,19 +287,7 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
   nb_c = lapply(adjacencies_list,\(nei){nei-1})
   # run the algorithm
   res=hclustcc_cpp(nb_c,df_scaled,method)
-  
-  # complete merge tree if constraints does not allow to reach K=1
-  nbmissmerge = sum(rowSums(res$merge==0)==2)
-  if(nbmissmerge>0){
-    warning("Some regions were isolated. The hierarchy was automatically completed to reach one cluster.",call. = FALSE)
-    missing_merges = setdiff(c(-1:-nrow(df_scaled),1:(nrow(df_scaled)-1-nbmissmerge)),c(res$merge[,1],res$merge[,2]))
-    for(i in (nrow(df_scaled)-nbmissmerge):(nrow(df_scaled)-1)){
-      cmerge = missing_merges[1:2]
-      res$merge[i,]=cmerge
-      res$height[i]=res$height[nrow(df_scaled)-nbmissmerge-1]*1.2
-      missing_merges=c(missing_merges[3:length(missing_merges)],i)
-    }
-  }
+
   
 
   # format the results in hclust form
@@ -310,12 +298,13 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
                 call=sys.call(),
                 method=method$method,
                 dist.method="euclidean",
+                k.relaxed=res$k.relaxed,
                 data=res$data,
                 centers=res$centers)
   if(methods::is(method,"bayesian_gtmethod")){
     hc_res = c(hc_res,list(test.stat=exp(res$test.stat),Ll=res$Ll))
   }
-  class(hc_res)  <- "hclust"
+  class(hc_res)  <- c("gtclust","hclust")
 
   hc_res
 }
@@ -459,4 +448,47 @@ gtmethod_bayes_dgmm = function(tau = 0.01, kappa = 1, beta = NaN, mu = as.matrix
             class = c("gtmethod","bayesian_gtmethod"))
 }
 
+#' @title plot gtclust dendrogram
+#'
+#' @description 
+#' @param x a tree as produced by gtclust. cutree() only expects a list with components merge, height, and labels, of appropriate content each.
+#' @param nb_leaf number of leafs to keep 
+#' @return an \code{\link[ggplot2]{ggplot}} object
+#' @export
+plot.gtclust=function(x,y=NULL,nb_leafs=500,...){
+  
+  tree = x 
+  rownames(tree$data)=1:nrow(tree$data)
+  small_tree = maptree::clip.clust(tree,data=tree$data,k = nb_leafs)
+  to_add=tree$height[length(tree$height)]-small_tree$height[length(small_tree$height)]
+  small_tree$height=small_tree$height+to_add
+  dend_data = ggdendro::dendro_data(as.dendrogram(small_tree))
+  cluster_sizes = sapply(small_tree$membership,length)
+  dend_data$labels$size=cluster_sizes
+  
+  if(tree$k.relaxed>1){
+    ymax =tree$height[nrow(tree$data)-tree$k.relaxed]
+  }else{
+    ymax=max(tree$k.relaxed)
+  }
+
+    
+  ggplot2::ggplot(dend_data$segments |> filter(y<=ymax)) + 
+    ggplot2::geom_segment(ggplot2::aes_(x =~ x, y  =~ y, xend =~ xend, yend =~ yend,linetype="constrained"),size=0.3)+
+    ggplot2::geom_segment(data=dend_data$segments |> filter(y>ymax),ggplot2::aes_(x =~ x, y =~ y, xend =~ xend, yend =~ yend,linetype="relaxed merge"),color="#aeaeae",size=0.5,linetype="dotted")+
+    ggplot2::geom_point(data = dend_data$labels, ggplot2::aes_(x=~x, y=~y-10, size=~size))+
+    ggplot2::theme_bw()+
+    ggplot2::scale_x_continuous("",breaks=c())+
+    ggplot2::scale_linetype_manual(values=c("relaxed"="dotted","constrained"="solid"))+
+    ggplot2::scale_y_continuous("Height",n.breaks = 8)+
+    ggplot2::guides(linetype=ggplot2::guide_legend("Merge type:"),size=ggplot2::guide_legend("Branch size:"))+
+    ggplot2::theme(
+      panel.grid.major = ggplot2::element_blank(),
+      panel.grid.minor = ggplot2::element_blank(),
+      panel.border = ggplot2::element_blank(),
+      legend.position="bottom"
+    )
+  
+  
+}
 

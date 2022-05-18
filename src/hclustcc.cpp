@@ -60,17 +60,14 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
 
   
   
-  // TODO specific class for bayesian results optimal k* and test value results, height definition ? 
+
   // TODO collision detection a priori and priority queue as a map not multimap ? being consistent with hclust strategy for ties ?
-  // TODO isolated island completion 
-  // TODO interface // prior specification 
-  // TODO bayesdgmm method ?
   // TODO look at heller empirical bayes for prior specification
-  // TODO test and check chi2 
+
   
   int V = X.nrow();
   bool is_bayesian = method_obj.inherits("bayesian_gtmethod");
-
+  int k_relaxed = 1;
   
   // compute data statistics needed for priors or distance
   GTMethod::GTMethod * method = init_method(method_obj);
@@ -78,12 +75,18 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
 
   
   // data-structure creation
+  // adjacency graph as an adjacency list
   std::vector<node> graph(2*V-1);
+  // merge priority queue
   std::multimap<double,std::pair<int, int>,std::less<double>> priority_queue;
+  // list of active nodes
+  std::set<int> active_nodes;
+  
   for(int i=0; i<nb.length(); ++i){
     if(nb[i]!=R_NilValue) {
       NumericVector nbi = as<NumericVector>(nb[i]);
       node cnode = method->init_node(i,X(i,_));
+      active_nodes.insert(i);
       for(int n=0; n<nbi.length(); ++n){
         int j = nbi[n];
         if(i!=j){
@@ -101,6 +104,7 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
   }
   
 
+
   // Lets Merge !
   NumericMatrix merge(V-1,2);
   NumericVector height(V-1);
@@ -113,15 +117,29 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
     auto best_merge = priority_queue.begin();
     
     
-    // deal with isolated regions (no more merge possible and node)
+    // deal with isolated regions (no more merge possibles with contiguity constrains)
     if(best_merge==priority_queue.end()){
 
-      // Rcout << "isolated regions" << std::endl;
-      for(int nb_miss_merge=node_id;nb_miss_merge<(V-1);nb_miss_merge++){
-        merge(nb_miss_merge,1)=0;
-        merge(nb_miss_merge,2)=0;
+
+      // Relax contiguity constraints to build a complete hierarchy
+      //priority_queue.clear(); // already empty
+      k_relaxed = V-imerge;
+      for(auto it = active_nodes.begin(); it != active_nodes.end(); ++it ) {
+        int i = *it;
+        graph[i].neibs.clear();
+        for(auto it_nei = active_nodes.begin(); it_nei != active_nodes.end(); ++it_nei ){
+          int j = *it_nei;
+          if(i!=j){
+              double d = method->dist(graph[i],graph[j]);
+              graph[i].neibs.insert(std::make_pair(j,d));
+              if(i<j){
+                priority_queue.insert(std::make_pair(d,std::make_pair(i,j)));
+              }
+          }
+        }
       }
-      break;
+      best_merge = priority_queue.begin();
+
     }
     
     std::pair<int,int> edge = best_merge->second; 
@@ -144,6 +162,12 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
     }else{
       merge(imerge,1)=h-V+1;
     }
+    
+    // update actives_nodes
+    active_nodes.erase(active_nodes.find(g));
+    active_nodes.erase(active_nodes.find(h));
+    active_nodes.insert(node_id);
+
     
     // create a new node
     node new_node = method->merge(node_id,node_g,node_h,height[imerge]);
@@ -234,9 +258,19 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
   delete method;
   List res;
   if(is_bayesian){
-    res =  List::create(Named("merge",merge),Named("height",height),Named("data",X),Named("centers",centers),Named("Ll",Ll),Named("test.stat",stat_test));
+    res =  List::create(Named("merge",merge),
+                        Named("height",height),
+                        Named("data",X),
+                        Named("centers",centers),
+                        Named("Ll",Ll),
+                        Named("test.stat",stat_test),
+                        Named("k.relaxed",k_relaxed));
   }else{
-    res = List::create(Named("merge",merge),Named("height",height),Named("data",X),Named("centers",centers));
+    res = List::create(Named("merge",merge),
+                       Named("height",height),
+                       Named("data",X),
+                       Named("centers",centers),
+                       Named("k.relaxed",k_relaxed));
   }
   return res;
 }
