@@ -33,15 +33,15 @@ here) or sequential data:
     geographical points
 
 Several aggregations methods are available with all of the
-aforementioned interface. The classical linkage criterions that
-available in `hclust` :
+aforementioned interface. The classical linkage criterion available in
+`hclust` :
 
 -   `ward`
 -   `centroid`
 -   `median`
 
-But `gtclust` also offers, two bayesian criterion that enable model
-selection :
+Note that, ut `gtclust` also offers, two bayesian criterion that enable
+model selection :
 
 -   `bayes_mom` mixture of multinomials for counts data
 -   `bayes_dgmm` diagonal mixture models for continuous features
@@ -110,102 +110,11 @@ modesshare_agg = geocutree(hc,k=500)
 <img src="man/figures/README-plotparis-1.png" width="100%" />
 
 ``` r
-library(microbenchmark)
-knngraph = function(df,k){
-  # build graph
-  xy = sf::st_coordinates(df)[,1:2]  
-  knn = RANN::nn2(xy,k=k)
-  # ensure symmetry and extract adjacency list from results
-  nb = rep(list(c()),nrow(df))
-  for (i in 1:nrow(xy)){
-    knei = setdiff(knn$nn.idx[i,],i)
-    nb[[i]]=unique(c(nb[[i]],knei))
-    for(j in knn$nn.idx[i,]){
-      nb[[j]]=unique(c(nb[[j]],i))
-    }
-  }
-  nb
-}
-
-delaunaygraph = function(df){
-  xy = sf::st_coordinates(df)[,1:2]
-  delaunay = RTriangle::triangulate(RTriangle::pslg(xy))
-  nb=rep(list(c()),nrow(df))
-  for (il in 1:nrow(delaunay$E)){
-    r = delaunay$E[il,]
-    nb[[r[1]]]=c(nb[[r[1]]],r[2])
-    nb[[r[2]]]=c(nb[[r[2]]],r[1])
-  }
-  nb
-}
-
-pts = modesshare.pts |> filter(DEP==75) |> st_union() |> st_geometry() |> st_centroid()
-distth = seq(50000,700000,by=50000)
-res=list()
-for (dt in distth){
-  modesshare.pts.sel = st_intersection(modesshare.pts,st_buffer(pts,dt))
-  
-  time=microbenchmark({
-      nb=knngraph(modesshare.pts.sel,5)
-  },times = 5)
-  res=c(res,list(data.frame(dt=dt,
-                            N=nrow(modesshare.pts.sel),
-                            M=sum(sapply(nb, length)),
-                            alg="knn",
-                            time=median(time$time))))
-  
-  time=microbenchmark({
-      hc=gtclust_graph(nb,modesshare.pts.sel)
-  },times = 5)
-  res=c(res,list(data.frame(dt=dt,
-                            N=nrow(modesshare.pts.sel),
-                            M=sum(sapply(nb, length)),
-                            alg="gtclust-knn",
-                            time=median(time$time))))
-  
-  
-  time=microbenchmark({
-      hc=gtclust_graph(nb,modesshare.pts.sel,method="bayes_mom")
-  },times = 5)
-  res=c(res,list(data.frame(dt=dt,
-                            N=nrow(modesshare.pts.sel),
-                            M=sum(sapply(nb, length)),
-                            alg="gtclust-knn-bayes",
-                            time=median(time$time))))
-  
-  time=microbenchmark({
-      nb=delaunaygraph(modesshare.pts.sel)
-  },times = 5)
-  res=c(res,list(data.frame(dt=dt,
-                            N=nrow(modesshare.pts.sel),
-                            M=sum(sapply(nb, length)),
-                            alg="delaunay",
-                            time=median(time$time))))
-  
-  time=microbenchmark({
-      hc=gtclust_graph(nb,modesshare.pts.sel)
-  },times = 5)
-  res=c(res,list(data.frame(dt=dt,
-                            N=nrow(modesshare.pts.sel),
-                            M=sum(sapply(nb, length)),
-                            alg="gtclust-delaunay",
-                            time=median(time$time))))
-  
-  time=microbenchmark({
-      hc=gtclust_graph(nb,modesshare.pts.sel,method="bayes_mom")
-  },times = 5)
-  res=c(res,list(data.frame(dt=dt,
-                            N=nrow(modesshare.pts.sel),
-                            M=sum(sapply(nb, length)),
-                            alg="gtclust-delaunay-bayes",
-                            time=median(time$time))))
-  
-}
-res.bench = do.call(rbind,res)
+res_mom = gtclust_delaunay(modesshare.idf |> st_centroid(),method="bayes_mom")
+ggplot(data.frame(ts=res_mom$test.stat,K=(nrow(res_mom$data)-1):1))+
+    geom_point(aes(x=K,y=ts))+theme_bw()
 ```
 
-``` r
-ggplot(res.bench)+geom_line(aes(x=N,y=time,group=alg,color=alg))+geom_point(aes(x=N,y=time,group=alg,color=alg))
-```
+<img src="man/figures/README-unnamed-chunk-3-1.png" width="100%" />
 
 <img src="man/figures/README-benchplot-1.png" width="100%" />
