@@ -157,4 +157,47 @@ test_that("ward polygons queen/rook", {
 })
 
 
+test_that("bayesian dgmm", {
+  N = 5000
+  K = 20
+  D = 8
+  clusters_sizes = rpois(K-1,N/K)
+  i_change = c(0,cumsum(clusters_sizes),N)
+  X = matrix(0,nrow=N,ncol=D)
+  cl = rep(0,N)
+  for (k in 2:(K+1)) {
+    ind = (i_change[k-1]+1):i_change[k]
+    nk = length(ind)
+    cl[ind]=k-1
+    X[ind,]=do.call(cbind,lapply(1:D,\(d){rnorm(nk,runif(1)*5)}))
+  }
+  sol=gtclust_temp(X,method="bayes_dgmm")
+  clh = cutree(sol,20)
+  tcomp=table(cl,clh)
+  testthat::expect_equal((sum(tcomp)-sum(diag(tcomp)))/N,0,tolerance = 10^-2)
+})
+
+
+test_that("bayesian mom", {
+  N = 5000
+  K = 20
+  D = 8
+  clusters_sizes = rpois(K-1,N/K)
+  i_change = c(0,cumsum(clusters_sizes),N)
+  X = matrix(0,nrow=N,ncol=D)
+  cl = rep(0,N)
+  for (k in 2:(K+1)) {
+    ind = (i_change[k-1]+1):i_change[k]
+    nk = length(ind)
+    cl[ind]=k-1
+    X[ind,]=do.call(cbind,lapply(1:D,\(d){rpois(nk,runif(1)*3)}))
+  }
+  sol=gtclust_temp(X,method="bayes_mom")
+  clh = cutree(sol,20)
+  tcomp=table(cl,clh)
+  testthat::expect_equal((sum(tcomp)-sum(diag(tcomp)))/N,0,tolerance = 10^-2)
+})
+
+
+
 

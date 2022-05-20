@@ -134,6 +134,8 @@ namespace GTMethod{
       double dh = node_h.stats["d"];
       double Ltg = node_g.stats["Lt"];
       double Lth = node_h.stats["Lt"];
+      double Lg = node_g.stats["L"];
+      double Lh = node_h.stats["L"];
       double dn   = ladd(lgamma(node_g.size+node_h.size),dg+dh);
       double pi   = lgamma(node_g.size+node_h.size)-dn;
       NumericVector x   = node_g.x + node_h.x;
@@ -141,6 +143,7 @@ namespace GTMethod{
       double Lt   = ladd(pi+L,-pi+Ltg+Lth);
       // reverse for min heap
       return Lt-pi-L;
+      //return Lg+Lh-L;
     };
     node merge(int new_id,node node_g,node node_h,double height) {
       node new_node;
@@ -153,13 +156,14 @@ namespace GTMethod{
       double dh = node_h.stats["d"];
       double Ltg = node_g.stats["Lt"];
       double Lth = node_h.stats["Lt"];
-      
+      double Lg = node_g.stats["L"];
+      double Lh = node_h.stats["L"];
       double d   = ladd(lgamma(node_g.size+node_h.size),dg+dh);
       double pi  = lgamma(node_g.size+node_h.size)-d;
       double L   = log_dirichlet_multinom(new_node.x,beta);
       double Lt  = ladd(pi+L,-pi+Ltg+Lth);
       double r   = pi+L-Lt;
-      
+      //double r = L-Lg-Lh;
       List cstats = List::create(Named("d",d),
                                  Named("pi",pi),
                                  Named("L",L),
@@ -184,11 +188,13 @@ namespace GTMethod{
 
       if(Rcpp::traits::is_nan<REALSXP>(beta)){
         beta = 0.1*sum(colvar(X)); 
+        Rcout << "beta prior was fixed at" << beta << std::endl;
       }
 
       if(Rcpp::traits::is_nan<REALSXP>(mu[0])){
         mu = colmeans(X);
       }
+      Rcout << "mu prior was fixed at" << mu << std::endl;
 
     };
     node init_node(int id,NumericVector x) {
@@ -219,16 +225,21 @@ namespace GTMethod{
       double dh = node_h.stats["d"];
       double Ltg = node_g.stats["Lt"];
       double Lth = node_h.stats["Lt"];
+      
+      double Lg = node_g.stats["L"];
+      double Lh = node_h.stats["L"];
       double dn   = ladd(lgamma(node_g.size+node_h.size),dg+dh);
       double pi   = lgamma(node_g.size+node_h.size)-dn;
-      NumericVector x   = node_g.x + node_h.x;
+      int size = node_g.size+node_h.size;
+      NumericVector x   = node_g.x*node_g.size/size + node_h.x*node_h.size/size;
       NumericVector Sg = node_g.stats["S"];
       NumericVector Sh = node_h.stats["S"];
       NumericVector S  = Sg+node_g.size*(node_g.x-x)*(node_g.x-x)+Sh+node_h.size*(node_h.x-x)*(node_h.x-x);
-      double L    = log_gauss_evidence(x,S,node_g.size+node_h.size,kappa,tau,beta,mu);
+      double L    = log_gauss_evidence(x,S,size,kappa,tau,beta,mu);
       double Lt   = ladd(pi+L,-pi+Ltg+Lth);
       // reverse for min heap
       return Lt-pi-L;
+      //return Lg+Lh-L;
     };
     node merge(int new_id,node node_g,node node_h,double height) {
       node new_node;
@@ -241,7 +252,8 @@ namespace GTMethod{
       double dh = node_h.stats["d"];
       double Ltg = node_g.stats["Lt"];
       double Lth = node_h.stats["Lt"];
-      
+      double Lg = node_g.stats["L"];
+      double Lh = node_h.stats["L"];
       NumericVector Sg = node_g.stats["S"];
       NumericVector Sh = node_h.stats["S"];
       NumericVector S  = Sg+node_g.size*(node_g.x-new_node.x)*(node_g.x-new_node.x)+
@@ -251,8 +263,8 @@ namespace GTMethod{
       double pi  = lgamma(node_g.size+node_h.size)-d;
       double L   = log_gauss_evidence(new_node.x,S,new_node.size,kappa,tau,beta,mu);
       double Lt  = ladd(pi+L,-pi+Ltg+Lth);
+      //double r   = L-Lg-Lh;
       double r   = pi+L-Lt;
-      
       List cstats = List::create(Named("d",d),
                                  Named("pi",pi),
                                  Named("L",L),

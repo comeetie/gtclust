@@ -8,6 +8,8 @@
 #'
 #' @docType package
 #' @name gtclust
+#' @import Rcpp
+#' @importFrom Rcpp evalCpp
 #' @useDynLib gtclust, .registration=TRUE
 NULL
 #> NULL
@@ -235,7 +237,7 @@ gtclust_poly=function(df,method="ward",adjacency="rook",scaling="raw"){
 gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
   
   
-  if(is.character(method) & !(method %in% c("ward","centroid","median","chisq","bayes_mom","bayes_dgmm"))){
+  if(is.character(method) && !(method %in% c("ward","centroid","median","chisq","bayes_mom","bayes_dgmm"))){
     stop("'method' not recognized")
   }
   
@@ -451,7 +453,7 @@ gtmethod_bayes_dgmm = function(tau = 0.01, kappa = 1, beta = NaN, mu = as.matrix
 #' @title plot gtclust dendrogram
 #'
 #' @description 
-#' @param x a tree as produced by gtclust. cutree() only expects a list with components merge, height, and labels, of appropriate content each.
+#' @param x a tree as produced by a gtclust variant. 
 #' @param nb_leaf number of leafs to keep 
 #' @return an \code{\link[ggplot2]{ggplot}} object
 #' @export
@@ -469,13 +471,14 @@ plot.gtclust=function(x,y=NULL,nb_leafs=500,...){
   if(tree$k.relaxed>1){
     ymax =tree$height[nrow(tree$data)-tree$k.relaxed]
   }else{
-    ymax=max(tree$k.relaxed)
+    ymax=max(tree$height)
   }
 
-    
-  ggplot2::ggplot(dend_data$segments |> filter(y<=ymax)) + 
-    ggplot2::geom_segment(ggplot2::aes_(x =~ x, y  =~ y, xend =~ xend, yend =~ yend,linetype="constrained"),size=0.3)+
-    ggplot2::geom_segment(data=dend_data$segments |> filter(y>ymax),ggplot2::aes_(x =~ x, y =~ y, xend =~ xend, yend =~ yend,linetype="relaxed merge"),color="#aeaeae",size=0.5,linetype="dotted")+
+  segs_noconstr = dend_data$segments[dend_data$segments$y>ymax,]
+  segs_constr = dend_data$segments[dend_data$segments$y<=ymax,]
+  ggplot2::ggplot() + 
+    ggplot2::geom_segment(data=segs_constr,ggplot2::aes_(x =~ x, y  =~ y, xend =~ xend, yend =~ yend,linetype="constrained"),size=0.3)+
+    ggplot2::geom_segment(data=segs_noconstr,ggplot2::aes_(x =~ x, y =~ y, xend =~ xend, yend =~ yend,linetype="relaxed merge"),color="#aeaeae",size=0.5,linetype="dotted")+
     ggplot2::geom_point(data = dend_data$labels, ggplot2::aes_(x=~x, y=~y-10, size=~size))+
     ggplot2::theme_bw()+
     ggplot2::scale_x_continuous("",breaks=c())+
