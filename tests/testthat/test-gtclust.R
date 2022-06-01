@@ -157,9 +157,11 @@ test_that("ward polygons queen/rook", {
 })
 
 
+
+
 test_that("bayesian dgmm", {
-  N = 5000
-  K = 20
+  N = 100000
+  K = 500
   D = 8
   clusters_sizes = rpois(K-1,N/K)
   i_change = c(0,cumsum(clusters_sizes),N)
@@ -172,7 +174,7 @@ test_that("bayesian dgmm", {
     X[ind,]=do.call(cbind,lapply(1:D,\(d){rnorm(nk,runif(1)*5)}))
   }
   sol=gtclust_temp(X,method="bayes_dgmm")
-  clh = cutree(sol,20)
+  clh = cutree(sol,500)
   tcomp=table(cl,clh)
   testthat::expect_equal((sum(tcomp)-sum(diag(tcomp)))/N,0,tolerance = 10^-2)
 })
