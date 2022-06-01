@@ -81,16 +81,18 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
   std::multimap<double,std::pair<int, int>,std::less<double>> priority_queue;
   // list of active nodes
   std::set<int> active_nodes;
-  
+  double Llc = 0;//-log(V)-lgamma(V+1);
   for(int i=0; i<nb.length(); ++i){
     if(nb[i]!=R_NilValue) {
       NumericVector nbi = as<NumericVector>(nb[i]);
       node cnode = method->init_node(i,X(i,_));
+      //Llc+=static_cast<double>(cnode.stats["Lp"]);
       active_nodes.insert(i);
       for(int n=0; n<nbi.length(); ++n){
         int j = nbi[n];
         if(i!=j){
           node vnode = method->init_node(j,X(j,_));
+          
           double d = method->dist(cnode,vnode);
           cnode.neibs.insert(std::make_pair(j,d));
           if(i<j){
@@ -172,8 +174,11 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
     // create a new node
     node new_node = method->merge(node_id,node_g,node_h,height[imerge]);
     if(is_bayesian){
-      stat_test[imerge] = new_node.stats["r"];
-      Ll[imerge] = new_node.stats["L"];
+      Ll[imerge] = Llc-height[imerge];//+static_cast<double>(new_node.stats["delta"]);
+      if(imerge<(V-2) && imerge >0){
+        Ll[imerge]+=log(imerge)-log(V-imerge-1);
+      }
+      Llc = Ll[imerge];
     }
     // update the graph and priority queue
     for(auto nei_g = node_g.neibs.begin();nei_g!=node_g.neibs.end();nei_g++){
@@ -227,7 +232,6 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
       
       // new links in graphs
       if(j!=g){
-        
         double d = method->dist(new_node,graph[j]);
         new_node.neibs.insert(std::make_pair(j,d));
         graph[j].neibs.insert(std::make_pair(node_id,d));
@@ -263,7 +267,6 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
                         Named("data",X),
                         Named("centers",centers),
                         Named("Ll",Ll),
-                        Named("test.stat",stat_test),
                         Named("k.relaxed",k_relaxed));
   }else{
     res = List::create(Named("merge",merge),

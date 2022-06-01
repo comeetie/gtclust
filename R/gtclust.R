@@ -294,7 +294,7 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
 
   # format the results in hclust form
   hc_res = list(merge=res$merge, 
-                height=cumsum(res$height),
+                height=compute_height(cumsum(res$height)),
                 order=order_tree(res$merge,nrow(res$merge)),
                 labels=(rownames(df)),
                 call=sys.call(),
@@ -304,7 +304,7 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
                 data=res$data,
                 centers=res$centers)
   if(methods::is(method,"bayesian_gtmethod")){
-    hc_res = c(hc_res,list(test.stat=exp(res$test.stat),Ll=res$Ll))
+    hc_res = c(hc_res,list(Ll=res$Ll))
   }
   class(hc_res)  <- c("gtclust","hclust")
 
@@ -452,18 +452,22 @@ gtmethod_bayes_dgmm = function(tau = 0.01, kappa = 1, beta = NaN, mu = as.matrix
 
 #' @title plot gtclust dendrogram
 #'
-#' @description 
 #' @param x a tree as produced by a gtclust variant. 
-#' @param nb_leaf number of leafs to keep 
+#' @param nb_max_leafs number of leafs to keep 
 #' @return an \code{\link[ggplot2]{ggplot}} object
 #' @export
-plot.gtclust=function(x,y=NULL,nb_leafs=500,...){
+plot.gtclust=function(x,y=NULL,nb_max_leafs=500,...){
   
   tree = x 
   rownames(tree$data)=1:nrow(tree$data)
-  small_tree = maptree::clip.clust(tree,data=tree$data,k = nb_leafs)
-  to_add=tree$height[length(tree$height)]-small_tree$height[length(small_tree$height)]
-  small_tree$height=small_tree$height+to_add
+  if(substr(tree$method,1,5)=="bayes"){
+    im = which.min(tree$Ll)
+    nb_max_leafs=(length(tree$height)+1)-im
+  }else{
+    im=(length(tree$height)+1)-nb_max_leafs
+  }
+  small_tree = maptree::clip.clust(tree,data=tree$data,k = nb_max_leafs)
+
   dend_data = ggdendro::dendro_data(as.dendrogram(small_tree))
   cluster_sizes = sapply(small_tree$membership,length)
   dend_data$labels$size=cluster_sizes
@@ -471,7 +475,7 @@ plot.gtclust=function(x,y=NULL,nb_leafs=500,...){
   if(tree$k.relaxed>1){
     ymax =tree$height[nrow(tree$data)-tree$k.relaxed]
   }else{
-    ymax=max(tree$height)
+    ymax=max(small_tree$height)
   }
 
   segs_noconstr = dend_data$segments[dend_data$segments$y>ymax,]
@@ -479,7 +483,7 @@ plot.gtclust=function(x,y=NULL,nb_leafs=500,...){
   ggplot2::ggplot() + 
     ggplot2::geom_segment(data=segs_constr,ggplot2::aes_(x =~ x, y  =~ y, xend =~ xend, yend =~ yend,linetype="constrained"),size=0.3)+
     ggplot2::geom_segment(data=segs_noconstr,ggplot2::aes_(x =~ x, y =~ y, xend =~ xend, yend =~ yend,linetype="relaxed merge"),color="#aeaeae",size=0.5,linetype="dotted")+
-    ggplot2::geom_point(data = dend_data$labels, ggplot2::aes_(x=~x, y=~y-10, size=~size))+
+    ggplot2::geom_point(data = dend_data$labels, ggplot2::aes_(x=~x, y=~y-0.01*max(small_tree$height), size=~size))+
     ggplot2::theme_bw()+
     ggplot2::scale_x_continuous("",breaks=c())+
     ggplot2::scale_linetype_manual(values=c("relaxed"="dotted","constrained"="solid"))+
@@ -495,3 +499,91 @@ plot.gtclust=function(x,y=NULL,nb_leafs=500,...){
   
 }
 
+collapse = function(tree,nb_max_leaf=500){
+  L=length(tree$height)
+  cl=cutree(tree,nb_max_leaf)
+  itokeep = seq(L-nb_max_leaf+2,L)
+  merge=tree$merge[itokeep,]
+  nodes=as.vector(merge)
+  leafs = !(nodes %in% itokeep)
+  sum(leafs)
+  nodes[leafs]=-seq(1,sum(leafs))
+  nodes[!leafs]=nodes[!leafs]-min(nodes[!leafs])+1
+  merge=matrix(nodes,ncol=2)
+  tree$merge=merge
+  tree$order=gtclust:::order_tree(tree$merge,1)
+  tree$height=tree$height[itokeep]
+  tree$members=lapply(seq_len(nb_max_leaf),function(k){which(cl==k)})
+  tree
+}
+
+
+
+
+# extract the pareto front
+compute_height <- function(heights) {
+  # vector of icls value from root to leaves
+  icl <- -heights[length(heights):1]
+  # K
+  K <- 1:length(icl)
+  
+  # init H
+  H <- rep(0, length(icl))
+  
+  # current merge position
+  cdi <- Inf
+  # current best line
+  bestline <- 1
+  # vector with indexes of solutions that belong to the pareto front
+  Front <- c(1)
+  
+  # from root to leaves
+  for (l in 2:length(icl)) {
+    
+    # merge value with current bestline
+    di <- (icl[l] - icl[bestline])
+    din <- di / (l - bestline)
+    
+    # is their a potential merge ?
+    if (di > 0) {
+      
+      # if this merge did not occurs after the current one update the front
+      while (din > cdi & length(Front) > 1) {
+        
+        # remove the last solution from the front
+        Front <- Front[-length(Front)]
+        H[bestline] <- -1
+        
+        # update bestline
+        bestline <- Front[length(Front)]
+        
+        # update merge position
+        di <- (icl[l] - icl[bestline])
+        din <- di / (l - bestline)
+        # update previous merge position
+        if (length(Front) > 1) {
+          cdi <- (icl[bestline] - icl[Front[length(Front) - 1]]) / (bestline - Front[length(Front) - 1])
+        } else {
+          cdi <- H[1]
+        }
+      }
+      
+      # add the extracted solution to the front
+      H[Front[length(Front)]] <- din
+      cdi <- din
+      bestline <- l
+      Front <- c(Front, l)
+    } else {
+      # if solution not in front
+      H[l] <- -1
+    }
+  }
+  
+  # copy from left previous value
+  for (l in 2:length(icl)) {
+    if (H[l] == -1) {
+      H[l] <- H[l - 1]
+    }
+  }
+  H[length(H):1]
+}

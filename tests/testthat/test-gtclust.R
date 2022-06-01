@@ -192,7 +192,7 @@ test_that("bayesian mom", {
     ind = (i_change[k-1]+1):i_change[k]
     nk = length(ind)
     cl[ind]=k-1
-    X[ind,]=do.call(cbind,lapply(1:D,\(d){rpois(nk,runif(1)*3)}))
+    X[ind,]=do.call(cbind,lapply(1:D,\(d){rpois(nk,runif(1)*300)}))
   }
   sol=gtclust_temp(X,method="bayes_mom")
   clh = cutree(sol,20)
