@@ -3,7 +3,7 @@
 \docType{package}
 \name{gtclust}
 \alias{gtclust}
-\title{gtclust: A package for clustering spatial or temporal data with contiguity constrained hierarchical clustering}
+\title{gtclust: A package for fast clustering of spatial or temporal data with contiguity constrained hierarchical clustering}
 \description{
 The mypackage package provides three categories of important functions:
 gtclust_graph, gtclust_temp, gt_poly.

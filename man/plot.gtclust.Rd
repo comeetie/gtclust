@@ -4,12 +4,12 @@
 \alias{plot.gtclust}
 \title{plot gtclust dendrogram}
 \usage{
-\method{plot}{gtclust}(x, y = NULL, nb_leafs = 500, ...)
+\method{plot}{gtclust}(x, y = NULL, nb_max_leafs = 500, ...)
 }
 \arguments{
-\item{x}{a tree as produced by gtclust. cutree() only expects a list with components merge, height, and labels, of appropriate content each.}
+\item{x}{a tree as produced by a gtclust variant.}
 
-\item{nb_leaf}{number of leafs to keep}
+\item{nb_max_leafs}{number of leafs to keep}
 }
 \value{
 an \code{\link[ggplot2]{ggplot}} object
