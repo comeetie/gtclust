@@ -19,6 +19,7 @@ namespace GTMethod{
       cnode.id   = id;
       cnode.x    = x; 
       cnode.size = 1;
+      cnode.height = 0;
       return cnode;
     };
     virtual double dist(node node_g,node node_h) {
@@ -114,7 +115,8 @@ namespace GTMethod{
       cnode.x    = x; 
       cnode.size = 1;
       double ldm = log_dirichlet_multinom(x,beta);
-      List cstats = List::create(Named("Lp",ldm),Named("delta",0));
+      cnode.height = ldm;
+      List cstats = List::create(Named("Lp",ldm));
       cnode.stats = cstats;
       return cnode;
     };
@@ -143,9 +145,7 @@ namespace GTMethod{
       double Lg  = node_g.stats["Lp"];
       double Lh  = node_h.stats["Lp"];
       double Lp   = log_dirichlet_multinom(new_node.x,beta)+lgamma(new_node.size+1);
-      double delta = Lp-Lg-Lh;
-      List cstats = List::create(Named("Lp",Lp),
-                                 Named("delta",delta));
+      List cstats = List::create(Named("Lp",Lp));
       new_node.stats = cstats;
       return new_node;
     }
@@ -181,8 +181,7 @@ namespace GTMethod{
       cnode.size = 1;
       NumericVector S(x.length());
       double ldm = log_gauss_evidence(x,S,1,kappa,tau,beta,mu);
-      List cstats = List::create(Named("delta",0),
-                                 Named("Lp",ldm),
+      List cstats = List::create(Named("Lp",ldm),
                                  Named("S",S));
       cnode.stats = cstats;
       return cnode;
@@ -224,9 +223,7 @@ namespace GTMethod{
         Sh+node_h.size*(node_h.x-new_node.x)*(node_h.x-new_node.x);
       double L   = log_gauss_evidence(new_node.x,S,new_node.size,kappa,tau,beta,mu);
       double Lp  = L+lgamma(new_node.size+1);
-      double delta = Lp-Lg-Lh;
-      List cstats = List::create(Named("delta",delta),
-                                 Named("Lp",Lp),
+      List cstats = List::create(Named("Lp",Lp),
                                  Named("S",S));
       new_node.stats = cstats;
       return new_node;

@@ -290,11 +290,12 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
   # run the algorithm
   res=hclustcc_cpp(nb_c,df_scaled,method)
 
-  
+
 
   # format the results in hclust form
-  hc_res = list(merge=res$merge, 
-                height=compute_height(cumsum(res$height)),
+  hc_res = list(merge=res$merge,
+                Ll = res$Ll,
+                height=compute_height(res$Ll),
                 order=order_tree(res$merge,nrow(res$merge)),
                 labels=(rownames(df)),
                 call=sys.call(),
@@ -303,9 +304,6 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
                 k.relaxed=res$k.relaxed,
                 data=res$data,
                 centers=res$centers)
-  if(methods::is(method,"bayesian_gtmethod")){
-    hc_res = c(hc_res,list(Ll=res$Ll))
-  }
   class(hc_res)  <- c("gtclust","hclust")
 
   hc_res
@@ -467,7 +465,7 @@ plot.gtclust=function(x,y=NULL,nb_max_leafs=500,...){
     im=(length(tree$height)+1)-nb_max_leafs
   }
   small_tree = maptree::clip.clust(tree,data=tree$data,k = nb_max_leafs)
-
+  small_tree$height=small_tree$height+tree$height[im]
   dend_data = ggdendro::dendro_data(as.dendrogram(small_tree))
   cluster_sizes = sapply(small_tree$membership,length)
   dend_data$labels$size=cluster_sizes
@@ -489,12 +487,15 @@ plot.gtclust=function(x,y=NULL,nb_max_leafs=500,...){
     ggplot2::scale_linetype_manual(values=c("relaxed"="dotted","constrained"="solid"))+
     ggplot2::scale_y_continuous("Height",n.breaks = 8)+
     ggplot2::guides(linetype=ggplot2::guide_legend("Merge type:"),size=ggplot2::guide_legend("Branch size:"))+
+    ggplot2::scale_size(breaks=round(seq(max(cluster_sizes)/3,max(cluster_sizes),length.out=3)/10)*10,limits=c(0,max(cluster_sizes)),range=c(0,4))+
+    ggplot2::ggtitle(paste(sol$method,nb_max_leafs))+
     ggplot2::theme(
       panel.grid.major = ggplot2::element_blank(),
       panel.grid.minor = ggplot2::element_blank(),
       panel.border = ggplot2::element_blank(),
       legend.position="bottom"
     )
+    
   
   
 }
@@ -585,5 +586,5 @@ compute_height <- function(heights) {
       H[l] <- H[l - 1]
     }
   }
-  H[length(H):1]
+  H[(length(H)-1):1]
 }

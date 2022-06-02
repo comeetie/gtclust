@@ -81,18 +81,22 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
   std::multimap<double,std::pair<int, int>,std::less<double>> priority_queue;
   // list of active nodes
   std::set<int> active_nodes;
-  double Llc = 0;//-log(V)-lgamma(V+1);
+  // current negative loglike
+  double Llc = 0;
+  if(is_bayesian){
+    Llc += -log(V)-lgamma(V+1);
+  }
+  
   for(int i=0; i<nb.length(); ++i){
     if(nb[i]!=R_NilValue) {
       NumericVector nbi = as<NumericVector>(nb[i]);
       node cnode = method->init_node(i,X(i,_));
-      //Llc+=static_cast<double>(cnode.stats["Lp"]);
+      Llc+=cnode.height;
       active_nodes.insert(i);
       for(int n=0; n<nbi.length(); ++n){
         int j = nbi[n];
         if(i!=j){
           node vnode = method->init_node(j,X(j,_));
-          
           double d = method->dist(cnode,vnode);
           cnode.neibs.insert(std::make_pair(j,d));
           if(i<j){
@@ -110,11 +114,10 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
   // Lets Merge !
   NumericMatrix merge(V-1,2);
   NumericVector height(V-1);
-  NumericVector stat_test(V-1);
-  NumericVector Ll(V-1);
+  NumericVector Ll(V);
+  Ll[0]=Llc;
   for(int imerge=0;imerge<(V-1);imerge++){
     
-
     int node_id = V+imerge;
     auto best_merge = priority_queue.begin();
     
@@ -141,7 +144,6 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
         }
       }
       best_merge = priority_queue.begin();
-
     }
     
     std::pair<int,int> edge = best_merge->second; 
@@ -173,13 +175,14 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
     
     // create a new node
     node new_node = method->merge(node_id,node_g,node_h,height[imerge]);
+    
+    Ll[imerge+1] = Llc+height[imerge];
     if(is_bayesian){
-      Ll[imerge] = Llc-height[imerge];//+static_cast<double>(new_node.stats["delta"]);
       if(imerge<(V-2) && imerge >0){
-        Ll[imerge]+=log(imerge)-log(V-imerge-1);
+        Ll[imerge+1]+=log(imerge)-log(V-imerge-1);
       }
-      Llc = Ll[imerge];
     }
+    Llc = Ll[imerge+1];
     // update the graph and priority queue
     for(auto nei_g = node_g.neibs.begin();nei_g!=node_g.neibs.end();nei_g++){
       
@@ -260,21 +263,11 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
   CharacterVector ch = colnames(X);
   colnames(centers) = ch;
   delete method;
-  List res;
-  if(is_bayesian){
-    res =  List::create(Named("merge",merge),
-                        Named("height",height),
-                        Named("data",X),
-                        Named("centers",centers),
-                        Named("Ll",Ll),
-                        Named("k.relaxed",k_relaxed));
-  }else{
-    res = List::create(Named("merge",merge),
-                       Named("height",height),
+  List res = List::create(Named("merge",merge),
+                       Named("Ll",Ll),
                        Named("data",X),
                        Named("centers",centers),
                        Named("k.relaxed",k_relaxed));
-  }
   return res;
 }
 
