@@ -5,8 +5,6 @@
 \title{Hierarchical clustering with contiguity constraints between polygons}
 \usage{
 gtclust_poly(df, method = "ward", adjacency = "rook", scaling = "raw")
-
-gtclust_poly(df, method = "ward", adjacency = "rook", scaling = "raw")
 }
 \arguments{
 \item{df}{an \code{\link[sf]{sf}} data.frame with polygons like features}
@@ -25,17 +23,7 @@ an \code{\link[stats]{hclust}} like object with additional slots
   \item{data}{The numeric data (eventually scaled) used for the clustering}
   \item{centers}{The protoypes of each tree nodes}
 }
-
-an \code{\link[stats]{hclust}} like object with additional slots
-\describe{
-  \item{leafs_geometry}{geometries of the dendrogram leafs as an sfc list}
-  \item{geotree}{geometries of the dendrogram no-leafs node as an sfc list}
-  \item{data}{The numeric data (eventually scaled) used for the clustering}
-  \item{centers}{The protoypes of each tree nodes}
-}
 }
 \description{
-This function take an \code{\link[sf]{sf}} data.frame and performs hierarchical clustering with contiguity constraints.
-
 This function take an \code{\link[sf]{sf}} data.frame and performs hierarchical clustering with contiguity constraints.
 }

@@ -217,51 +217,6 @@ gtclust_poly=function(df,method="ward",adjacency="rook",scaling="raw"){
   hc_res
 }
 
-#' @title Hierarchical clustering with contiguity constraints between lines
-#'
-#' @description This function take an \code{\link[sf]{sf}} data.frame and performs hierarchical clustering with contiguity constraints.
-#' @param df an \code{\link[sf]{sf}} data.frame with polygons like features
-#' @param method linkage criterion in ward (default) or average, median
-#' @param scaling default scaling of the features in zscore (default) or raw (i.e. no scaling)
-#' @param adjacency adjacency type to use  "rook" (default) or queen
-#' @return an \code{\link[stats]{hclust}} like object with additional slots
-#' \describe{
-#'   \item{leafs_geometry}{geometries of the dendrogram leafs as an sfc list}
-#'   \item{geotree}{geometries of the dendrogram no-leafs node as an sfc list}
-#'   \item{data}{The numeric data (eventually scaled) used for the clustering}
-#'   \item{centers}{The protoypes of each tree nodes}
-#' }
-#' @export
-gtclust_poly=function(df,method="ward",adjacency="rook",scaling="raw"){
-  
-  if(!methods::is(df,"sf")){
-    stop("The dataset must be an sf data.frame.",call. = FALSE)
-  }
-  
-  if(!all(sapply(sf::st_geometry(df),function(u){sf::st_is(u,"MULTIPOLYGON")}) | 
-          sapply(sf::st_geometry(df),function(u){sf::st_is(u,"POLYGON")}))){
-    stop("The dataset must contains only POLYGONS or MULTIPOLYGONS.",call. = FALSE)
-  }
-  df_nogeo=sf::st_drop_geometry(df)
-  
-  
-  # build graph
-  # see https://github.com/r-spatial/sf/issues/234#issuecomment-300511129 and ?st_relate
-  if(adjacency=="rook"){
-    nb = sf::st_relate(df, df, pattern = "F***1****")
-  }else{
-    nb = sf::st_relate(df,df, pattern = "F***T****")
-  }
-  class(nb)="list"
-  hc_res=gtclust_graph(nb,df_nogeo,method,scaling)
-  hc_res$call=sys.call()
-  # add geographical data
-  hc_res$leafs_geometry = sf::st_geometry(df)
-  hc_res$geotree = build_geotree(hc_res$merge,df)
-  class(hc_res)=c(class(hc_res),"geoclust")
-  hc_res
-}
-
 
 #' @title Hierarchical clustering with contiguity constraints between lines
 #'
@@ -393,6 +348,7 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
                 dist.method="euclidean",
                 k.relaxed=res$k.relaxed,
                 data=res$data,
+                adjacencies_list=adjacencies_list,
                 centers=res$centers)
   class(hc_res)  <- c("gtclust","hclust")
 

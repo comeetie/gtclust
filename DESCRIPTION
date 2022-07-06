@@ -8,7 +8,7 @@ Author: Etienne Côme
 Maintainer: Etienne Côme <etienne.come@univ-eiffel.fr>
 Description: gtclust offers two functions gtclust_poly and gtclust_graph that enable the clustering of spatial data such as polygons with a hclust type approach but taking advantages of contiguity constraints. The contiguities naturaly create a sparsely connected graph that can be leveraged to speed-up the calculations and deal with more than 30000 polygons in seconds.   
 License: GPL (>= 2)
-Imports: Rcpp (>= 1.0.7), sf, RANN, RTriangle, ggplot2, maptree, ggdendro
+Imports: Rcpp (>= 1.0.7), sf, RANN, RTriangle, ggplot2, maptree, ggdendro, Matrix
 LinkingTo: Rcpp
 Depends: 
     R (>= 2.10)
