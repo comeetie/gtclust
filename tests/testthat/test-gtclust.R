@@ -171,7 +171,7 @@ test_that("bayesian dgmm", {
     ind = (i_change[k-1]+1):i_change[k]
     nk  = length(ind)
     cl[ind]=k-1
-    X[ind,]=do.call(cbind,lapply(1:D,\(d){rnorm(nk,runif(1)*30)}))
+    X[ind,]=do.call(cbind,lapply(1:D,\(d){rnorm(nk,runif(1)*20)}))
   }
   sol=gtclust_temp(X,method="bayes_dgmm")
   clh = cutree(sol,K)
@@ -192,11 +192,30 @@ test_that("bayesian mom", {
     ind = (i_change[k-1]+1):i_change[k]
     nk = length(ind)
     cl[ind]=k-1
-    X[ind,]=do.call(cbind,lapply(1:D,\(d){rpois(nk,30*k)}))
+    X[ind,]=do.call(cbind,lapply(1:D,\(d){rpois(nk,runif(1)*20)}))
   }
   sol=gtclust_temp(X,method="bayes_mom")
   clh = cutree(sol,20)
   tcomp=table(cl,clh)
+  testthat::expect_equal((sum(tcomp)-sum(diag(tcomp)))/N,0,tolerance = 10^-2)
+})
+
+
+test_that("bayesian dirichlet", {
+  n = 500
+  pcounts1 = c(35,200,800,32,45,700)
+  pcounts2 = c(600,35,200,15,50,18)/40
+  pcounts3 = c(600,350,100,15,10,30)/40
+  pcounts4 = c(60,35,10,15,250,250)/40
+  d=length(pcounts1)
+  library(gtools)
+  P = rbind(rdirichlet(n,pcounts1),rdirichlet(n,pcounts2),rdirichlet(n,pcounts3),rdirichlet(n,pcounts4))
+  
+  sol=gtclust_temp(P,method="bayes_dirichlet")
+  clh = cutree(sol,2)
+  cl=(rep(1:2,each=n))
+  tcomp=table(cl,clh)
+  tcomp
   testthat::expect_equal((sum(tcomp)-sum(diag(tcomp)))/N,0,tolerance = 10^-2)
 })
 

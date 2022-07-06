@@ -1,6 +1,7 @@
 #include <Rcpp.h>
 #include "GTMethod.h"
 #include "node.h"
+#include "LaplaceDirichlet.h"
 using namespace Rcpp;
 
 
@@ -49,6 +50,9 @@ GTMethod::GTMethod * init_method(List method_obj){
     double beta = method_obj["beta"];
     NumericVector mu = method_obj["mu"];
     method = new GTMethod::bayes_dgmm(kappa,tau,beta,mu); 
+  }else if(method_name=="bayes_dirichlet"){
+    NumericVector lambda = method_obj["lambda"];
+    method = new GTMethod::bayes_dirichlet(lambda); 
   }else{
     stop("Aggregation method not found.");
   }
@@ -83,8 +87,9 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
   std::set<int> active_nodes;
   // current negative loglike
   double Llc = 0;
+  double Pc  = 0;
   if(is_bayesian){
-    Llc += -log(V)-lgamma(V+1);
+    Pc += -lgamma(V+1);
   }
   
   for(int i=0; i<nb.length(); ++i){
@@ -114,13 +119,17 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
   // Lets Merge !
   NumericMatrix merge(V-1,2);
   NumericVector height(V-1);
+  NumericVector queue_size(V-1);
   NumericVector Ll(V);
+  NumericVector Prior(V);
   Ll[0]=Llc;
+  Prior[0]=Pc;
   for(int imerge=0;imerge<(V-1);imerge++){
-    
+    queue_size[imerge]=priority_queue.size();
+    int K_before = V-imerge; 
     int node_id = V+imerge;
     auto best_merge = priority_queue.begin();
-    
+
     
     // deal with isolated regions (no more merge possibles with contiguity constrains)
     if(best_merge==priority_queue.end()){
@@ -153,6 +162,15 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
     node node_h = graph[h];
     
     height[imerge]=best_merge->first;
+    Ll[imerge+1] = Llc+height[imerge];
+    Prior[imerge+1] = Prior[imerge];
+    if(is_bayesian){
+      // a checker
+      //Ll[imerge+1]+=log(K_before-1)-log(V-K_before+1);
+      //Prior[imerge+1]+=log(K_before-1)-log(V-K_before+1);
+      Prior[imerge+1]+=lgamma(node_h.size+node_g.size+1)-lgamma(node_h.size+1)-lgamma(node_g.size+1);
+    }
+    Llc = Ll[imerge+1];
     
     // strore merge move in hclust format with 1 based indices
     if(g<V){
@@ -176,13 +194,7 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
     // create a new node
     node new_node = method->merge(node_id,node_g,node_h,height[imerge]);
     
-    Ll[imerge+1] = Llc+height[imerge];
-    if(is_bayesian){
-      if(imerge<(V-2) && imerge >0){
-        Ll[imerge+1]+=log(imerge)-log(V-imerge-1);
-      }
-    }
-    Llc = Ll[imerge+1];
+
     // update the graph and priority queue
     for(auto nei_g = node_g.neibs.begin();nei_g!=node_g.neibs.end();nei_g++){
       
@@ -265,6 +277,8 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
   delete method;
   List res = List::create(Named("merge",merge),
                        Named("Ll",Ll),
+                       Named("Prior",Prior),
+                       Named("queue_size",queue_size),
                        Named("data",X),
                        Named("centers",centers),
                        Named("k.relaxed",k_relaxed));

@@ -4,6 +4,7 @@
 #include <Rcpp.h>
 #include "node.h"
 #include "dist.h"
+#include "LaplaceDirichlet.h"
 
 using namespace Rcpp;
 
@@ -141,9 +142,6 @@ namespace GTMethod{
       new_node.x  = node_g.x + node_h.x;
       new_node.size= node_h.size+node_g.size;
       new_node.height = height;
-      
-      double Lg  = node_g.stats["Lp"];
-      double Lh  = node_h.stats["Lp"];
       double Lp   = log_dirichlet_multinom(new_node.x,beta)+lgamma(new_node.size+1);
       List cstats = List::create(Named("Lp",Lp));
       new_node.stats = cstats;
@@ -203,7 +201,7 @@ namespace GTMethod{
       NumericVector Sg = node_g.stats["S"];
       NumericVector Sh = node_h.stats["S"];
       NumericVector S  = Sg+node_g.size*(node_g.x-x)*(node_g.x-x)+Sh+node_h.size*(node_h.x-x)*(node_h.x-x);
-      double Lp    = log_gauss_evidence(x,S,size,kappa,tau,beta,mu)+lgamma(size+1);
+      double Lp    = log_gauss_evidence(x,S,size,kappa,tau,beta,mu);//+lgamma(size+1);
       // reverse for min heap
       return Lg+Lh-Lp;
     };
@@ -213,16 +211,12 @@ namespace GTMethod{
       new_node.size= node_h.size+node_g.size;
       new_node.x  = node_g.x*node_g.size/new_node.size + node_h.x*node_h.size/new_node.size;
       new_node.height = height;
-      
-
-      double Lg = node_g.stats["Lp"];
-      double Lh = node_h.stats["Lp"];
       NumericVector Sg = node_g.stats["S"];
       NumericVector Sh = node_h.stats["S"];
       NumericVector S  = Sg+node_g.size*(node_g.x-new_node.x)*(node_g.x-new_node.x)+
         Sh+node_h.size*(node_h.x-new_node.x)*(node_h.x-new_node.x);
       double L   = log_gauss_evidence(new_node.x,S,new_node.size,kappa,tau,beta,mu);
-      double Lp  = L+lgamma(new_node.size+1);
+      double Lp  = L;//+lgamma(new_node.size+1);
       List cstats = List::create(Named("Lp",Lp),
                                  Named("S",S));
       new_node.stats = cstats;
@@ -241,6 +235,72 @@ namespace GTMethod{
     NumericVector mu;
   };
 
+  
+  
+  // BAYES Dirichlet Mixture Models
+  class bayes_dirichlet : public GTMethod {
+  public:
+    void init(const NumericMatrix& X) {
+      if(Rcpp::traits::is_nan<REALSXP>(lambda[0])){
+        lambda = colmeans(X);
+        lambda.fill(0.01);
+      }
+    };
+    node init_node(int id,NumericVector x) {
+      node cnode;
+      cnode.id   = id;
+      cnode.x    = x; 
+      cnode.size = 1;
+      double ldm = dirichlet_evidence(1,lambda,log(x),x);
+      List cstats = List::create(Named("Lp",ldm),Named("lpi",log(x)));
+      cnode.stats = cstats;
+      return cnode;
+    };
+    double dist(node node_g,node node_h) {
+      // avoid symmetry problems due to numerical problems
+      if(node_g.id>node_h.id){
+        node nt;
+        nt = node_g;
+        node_g=node_h;
+        node_h=nt;
+      }
+      
+      
+      double Lg = node_g.stats["Lp"];
+      double Lh = node_h.stats["Lp"];
+      int size = node_g.size+node_h.size;
+      NumericVector pi   = node_g.x*node_g.size/size + node_h.x*node_h.size/size;
+      NumericVector lpig = node_g.stats["lpi"];
+      NumericVector lpih = node_h.stats["lpi"];
+      NumericVector lpi = lpig+lpih; 
+      double Lp    = dirichlet_evidence(size,lambda,lpi,pi)+lgamma(size+1);
+      // reverse for min heap
+      return Lg+Lh-Lp;
+    };
+    node merge(int new_id,node node_g,node node_h,double height) {
+      node new_node;
+      new_node.id = new_id;
+      new_node.size= node_h.size+node_g.size;
+      new_node.x  = node_g.x*node_g.size/new_node.size + node_h.x*node_h.size/new_node.size;
+      new_node.height = height;
+      NumericVector lpig = node_g.stats["lpi"];
+      NumericVector lpih = node_h.stats["lpi"];
+      NumericVector lpi = lpig+lpih; 
+      double L   = dirichlet_evidence(new_node.size,lambda,lpi,new_node.x);
+      double Lp  = L+lgamma(new_node.size+1);
+      List cstats = List::create(Named("Lp",Lp),
+                                 Named("lpi",lpi));
+      new_node.stats = cstats;
+      return new_node;
+    }
+    bayes_dirichlet(NumericVector lambda_val) {
+      lambda= lambda_val;
+    };
+  private:
+    NumericVector lambda;
+  };
+  
+  
 }
 
 

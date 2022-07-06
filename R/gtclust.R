@@ -217,6 +217,94 @@ gtclust_poly=function(df,method="ward",adjacency="rook",scaling="raw"){
   hc_res
 }
 
+#' @title Hierarchical clustering with contiguity constraints between lines
+#'
+#' @description This function take an \code{\link[sf]{sf}} data.frame and performs hierarchical clustering with contiguity constraints.
+#' @param df an \code{\link[sf]{sf}} data.frame with polygons like features
+#' @param method linkage criterion in ward (default) or average, median
+#' @param scaling default scaling of the features in zscore (default) or raw (i.e. no scaling)
+#' @param adjacency adjacency type to use  "rook" (default) or queen
+#' @return an \code{\link[stats]{hclust}} like object with additional slots
+#' \describe{
+#'   \item{leafs_geometry}{geometries of the dendrogram leafs as an sfc list}
+#'   \item{geotree}{geometries of the dendrogram no-leafs node as an sfc list}
+#'   \item{data}{The numeric data (eventually scaled) used for the clustering}
+#'   \item{centers}{The protoypes of each tree nodes}
+#' }
+#' @export
+gtclust_poly=function(df,method="ward",adjacency="rook",scaling="raw"){
+  
+  if(!methods::is(df,"sf")){
+    stop("The dataset must be an sf data.frame.",call. = FALSE)
+  }
+  
+  if(!all(sapply(sf::st_geometry(df),function(u){sf::st_is(u,"MULTIPOLYGON")}) | 
+          sapply(sf::st_geometry(df),function(u){sf::st_is(u,"POLYGON")}))){
+    stop("The dataset must contains only POLYGONS or MULTIPOLYGONS.",call. = FALSE)
+  }
+  df_nogeo=sf::st_drop_geometry(df)
+  
+  
+  # build graph
+  # see https://github.com/r-spatial/sf/issues/234#issuecomment-300511129 and ?st_relate
+  if(adjacency=="rook"){
+    nb = sf::st_relate(df, df, pattern = "F***1****")
+  }else{
+    nb = sf::st_relate(df,df, pattern = "F***T****")
+  }
+  class(nb)="list"
+  hc_res=gtclust_graph(nb,df_nogeo,method,scaling)
+  hc_res$call=sys.call()
+  # add geographical data
+  hc_res$leafs_geometry = sf::st_geometry(df)
+  hc_res$geotree = build_geotree(hc_res$merge,df)
+  class(hc_res)=c(class(hc_res),"geoclust")
+  hc_res
+}
+
+
+#' @title Hierarchical clustering with contiguity constraints between lines
+#'
+#' @description This function take an \code{\link[sf]{sf}} data.frame and performs hierarchical clustering with contiguity constraints.
+#' @param df an \code{\link[sf]{sf}} data.frame with polygons like features
+#' @param method linkage criterion in ward (default) or average, median
+#' @param scaling default scaling of the features in zscore (default) or raw (i.e. no scaling)
+#' @param adjacency adjacency type to use  "rook" (default) or queen
+#' @return an \code{\link[stats]{hclust}} like object with additional slots
+#' \describe{
+#'   \item{leafs_geometry}{geometries of the dendrogram leafs as an sfc list}
+#'   \item{geotree}{geometries of the dendrogram no-leafs node as an sfc list}
+#'   \item{data}{The numeric data (eventually scaled) used for the clustering}
+#'   \item{centers}{The protoypes of each tree nodes}
+#' }
+#' @export
+gtclust_lines=function(df,method="ward",scaling="raw"){
+  
+  if(!methods::is(df,"sf")){
+    stop("The dataset must be an sf data.frame.",call. = FALSE)
+  }
+  
+  if(!all(sapply(sf::st_geometry(df),function(u){sf::st_is(u,"MULTILINESTRING")}) | 
+          sapply(sf::st_geometry(df),function(u){sf::st_is(u,"LINESTRING")}))){
+    stop("The dataset must contains only LINESTRINGS or MULTILINESTRINGS.",call. = FALSE)
+  }
+  df_nogeo=sf::st_drop_geometry(df)
+  
+  
+  # build graph
+  # see https://github.com/r-spatial/sf/issues/234#issuecomment-300511129 and ?st_relate
+  
+  nb = sf::st_relate(df,df, pattern = "F***T****")
+  class(nb)="list"
+  hc_res=gtclust_graph(nb,df_nogeo,method,scaling)
+  hc_res$call=sys.call()
+  # add geographical data
+  hc_res$leafs_geometry = sf::st_geometry(df)
+  hc_res$geotree = build_geotree(hc_res$merge,df)
+  class(hc_res)=c(class(hc_res),"geoclust")
+  hc_res
+}
+
 
 
 
@@ -237,7 +325,7 @@ gtclust_poly=function(df,method="ward",adjacency="rook",scaling="raw"){
 gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
   
   
-  if(is.character(method) && !(method %in% c("ward","centroid","median","chisq","bayes_mom","bayes_dgmm"))){
+  if(is.character(method) && !(method %in% c("ward","centroid","median","chisq","bayes_mom","bayes_dgmm","bayes_dirichlet"))){
     stop("'method' not recognized")
   }
   
@@ -296,6 +384,8 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
   hc_res = list(merge=res$merge,
                 Ll = res$Ll,
                 height=compute_height(res$Ll),
+                Prior = res$Prior,
+                Queue_size=res$queue_size,
                 order=order_tree(res$merge,nrow(res$merge)),
                 labels=(rownames(df)),
                 call=sys.call(),
@@ -360,8 +450,8 @@ geocutree=function(tree,k = NULL, h= NULL){
 
 
 
-
-order_tree=function(merge,i){
+# ecrire une version non récursive p)our éviter les pbr de stack
+order_tree_rec=function(merge,i){
   if(merge[i,1]<0){
     left = -merge[i,1];
   }else{
@@ -374,6 +464,26 @@ order_tree=function(merge,i){
   }
   c(left,right)
 }
+
+order_tree=function(merge,i){
+  toprocess = c(i)
+  result = c(i)
+  while(length(toprocess)>0){
+    newnodes = c()
+    for (cn in toprocess){
+      children = merge[cn,]
+      ic     = which(result==cn)
+      leftr  = result[(1:length(result))<ic]
+      rightr = result[(1:length(result))>ic]
+      result = c(leftr,children,rightr)
+      newnodes = c(newnodes,children[children>0])
+    }
+    toprocess=newnodes
+  }
+  -result
+}
+
+
 
 
 build_geotree=function(merge,df){
@@ -448,6 +558,14 @@ gtmethod_bayes_dgmm = function(tau = 0.01, kappa = 1, beta = NaN, mu = as.matrix
             class = c("gtmethod","bayesian_gtmethod"))
 }
 
+#' @param lambda Prior parameter (inverse variance), (default 0.01)
+#' @describeIn gtmethod bayesian diagonal gaussian mixture model
+#' @export
+gtmethod_bayes_dirichlet = function(lambda = as.matrix(NaN)){
+  structure(list(method = "bayes_dirichlet",lambda=lambda), 
+            class = c("gtmethod","bayesian_gtmethod"))
+}
+
 #' @title plot gtclust dendrogram
 #'
 #' @param x a tree as produced by a gtclust variant. 
@@ -459,16 +577,15 @@ plot.gtclust=function(x,y=NULL,nb_max_leafs=500,...){
   tree = x 
   rownames(tree$data)=1:nrow(tree$data)
   if(substr(tree$method,1,5)=="bayes"){
-    im = which.min(tree$Ll)
+    im = which.min(tree$Ll)-1
     nb_max_leafs=(length(tree$height)+1)-im
   }else{
     im=(length(tree$height)+1)-nb_max_leafs
   }
-  small_tree = maptree::clip.clust(tree,data=tree$data,k = nb_max_leafs)
-  small_tree$height=small_tree$height+tree$height[im]
+  small_tree = collapse(tree, nb_max_leafs)
   dend_data = ggdendro::dendro_data(as.dendrogram(small_tree))
-  cluster_sizes = sapply(small_tree$membership,length)
-  dend_data$labels$size=cluster_sizes
+  cluster_sizes = sapply(small_tree$members,length)
+  dend_data$labels$size=cluster_sizes[small_tree$order]
   
   if(tree$k.relaxed>1){
     ymax =tree$height[nrow(tree$data)-tree$k.relaxed]
@@ -481,14 +598,14 @@ plot.gtclust=function(x,y=NULL,nb_max_leafs=500,...){
   ggplot2::ggplot() + 
     ggplot2::geom_segment(data=segs_constr,ggplot2::aes_(x =~ x, y  =~ y, xend =~ xend, yend =~ yend,linetype="constrained"),size=0.3)+
     ggplot2::geom_segment(data=segs_noconstr,ggplot2::aes_(x =~ x, y =~ y, xend =~ xend, yend =~ yend,linetype="relaxed merge"),color="#aeaeae",size=0.5,linetype="dotted")+
-    ggplot2::geom_point(data = dend_data$labels, ggplot2::aes_(x=~x, y=~y-0.01*max(small_tree$height), size=~size))+
+    ggplot2::geom_point(data = dend_data$labels, ggplot2::aes_(x=~x, y=~y-0.03*max(small_tree$height), size=~size))+
     ggplot2::theme_bw()+
     ggplot2::scale_x_continuous("",breaks=c())+
     ggplot2::scale_linetype_manual(values=c("relaxed"="dotted","constrained"="solid"))+
-    ggplot2::scale_y_continuous("Height",n.breaks = 8)+
+    ggplot2::scale_y_continuous(expression(-log(alpha)),n.breaks = 8)+
     ggplot2::guides(linetype=ggplot2::guide_legend("Merge type:"),size=ggplot2::guide_legend("Branch size:"))+
     ggplot2::scale_size(breaks=round(seq(max(cluster_sizes)/3,max(cluster_sizes),length.out=3)/10)*10,limits=c(0,max(cluster_sizes)),range=c(0,4))+
-    ggplot2::ggtitle(paste(sol$method,nb_max_leafs))+
+    ggplot2::ggtitle(paste0(tree$method,": ",nb_max_leafs," clusters"))+
     ggplot2::theme(
       panel.grid.major = ggplot2::element_blank(),
       panel.grid.minor = ggplot2::element_blank(),
@@ -500,22 +617,76 @@ plot.gtclust=function(x,y=NULL,nb_max_leafs=500,...){
   
 }
 
-collapse = function(tree,nb_max_leaf=500){
+#' @title plot gtclust pareto front
+#'
+#' @param x a tree as produced by a gtclust variant. 
+#' @return an \code{\link[ggplot2]{ggplot}} object
+#' @export
+front = function(tree,mlogalpha=NULL){
+  df.line=data.frame(Ll=-tree$Ll[which.min(tree$Ll):length(tree$Ll)],k=(length(tree$Ll)-which.min(tree$Ll)+1):1)
+  df.front = df.line
+  if(which.min(tree$Ll)>1){
+    df.front$xend = tree$height[(which.min(tree$Ll)-1):length(tree$height)]
+  }else{
+    df.front$xend = c(0,tree$height)
+  }
+
+  df.front = df.front[nrow(df.front):1,]
+  df.front = df.front[!duplicated(df.front$x),]
+  if(!is.null(mlogalpha)){
+    if(sum(df.front$xend<mlogalpha)>2){
+      df.front = df.front[df.front$xend<mlogalpha,]
+    }else{
+      error("mlogalpha too small, no front to show.",call. = FALSE)
+    }
+  }
+  xmax = max(df.front$xend)*1.05
+  ny  = diff(range(df.front$Ll))*0.025
+  df.front$x=c(xmax,df.front$xend[1:(nrow(df.front)-1)])
+  df.front$lf = (df.front$x-df.front$xend)/df.front$x[1]
+
+  ggplot2::ggplot(df.front)+
+    ggplot2::geom_abline(data=df.line,ggplot2::aes_(intercept=~Ll,slope=~(k-1)),color="#cacaca")+
+    ggplot2::geom_segment(data=df.front,ggplot2::aes_(x=~-x,xend=~-xend,y=~Ll-x*(k-1),yend=~Ll-xend*(k-1)))+
+    ggplot2::geom_point(data=df.front,ggplot2::aes_(x=~-xend,y=~Ll-xend*(k-1)))+
+    ggplot2::geom_text(data=df.front[df.front$lf>0.03,],ggplot2::aes_(x=~-xend,y=~Ll-xend*(k-1),label=~k),vjust="bottom",hjust = "right")+
+    ggplot2::xlab(expression(log(alpha)))+
+    ggplot2::ylab("ICL")+
+    ggplot2::theme_bw()
+}
+
+
+collapse = function(tree,nb_leafs=500){
+  if(length(tree$order)<=nb_leafs){
+    tree$members=as.list(1:length(tree$order))
+    return(tree);
+  }
   L=length(tree$height)
-  cl=cutree(tree,nb_max_leaf)
-  itokeep = seq(L-nb_max_leaf+2,L)
+
+  itokeep = seq(L-nb_leafs+2,L)
   merge=tree$merge[itokeep,]
   nodes=as.vector(merge)
-  leafs = !(nodes %in% itokeep)
-  sum(leafs)
-  nodes[leafs]=-seq(1,sum(leafs))
-  nodes[!leafs]=nodes[!leafs]-min(nodes[!leafs])+1
-  merge=matrix(nodes,ncol=2)
-  tree$merge=merge
-  tree$order=gtclust:::order_tree(tree$merge,1)
-  tree$height=tree$height[itokeep]
-  tree$members=lapply(seq_len(nb_max_leaf),function(k){which(cl==k)})
-  tree
+  leafs = !(nodes %in% itokeep) | nodes<0
+  new_nodes=rep(0,length(nodes))
+  new_nodes[leafs]=-seq(1,nb_leafs)
+  new_nodes[!leafs]=nodes[!leafs]-min(nodes[!leafs])+1
+  new_merge=matrix(new_nodes,ncol=2)
+  new_tree = tree
+  new_tree$merge=new_merge
+  new_tree$order=gtclust:::order_tree(new_merge,nrow(new_merge))
+  new_tree$height=tree$height[itokeep]
+  
+
+  new_tree$members=lapply(seq_len(nb_leafs),function(k){
+    if(nodes[leafs][k]<0){
+      chilren = -nodes[leafs][k]
+    }else{
+      children = gtclust:::order_tree(tree$merge,nodes[leafs][k])
+    }
+  })
+  #class(new_tree)="hclust"
+  #plot(new_tree)
+  new_tree
 }
 
 

@@ -10,6 +10,132 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// ldirpost
+double ldirpost(const NumericVector& beta, int n, const NumericVector& lambda, const NumericVector& lpi);
+RcppExport SEXP _gtclust_ldirpost(SEXP betaSEXP, SEXP nSEXP, SEXP lambdaSEXP, SEXP lpiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type beta(betaSEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lpi(lpiSEXP);
+    rcpp_result_gen = Rcpp::wrap(ldirpost(beta, n, lambda, lpi));
+    return rcpp_result_gen;
+END_RCPP
+}
+// grad_ldirpost
+NumericVector grad_ldirpost(const NumericVector& beta, int n, const NumericVector& lambda, const NumericVector& lpi);
+RcppExport SEXP _gtclust_grad_ldirpost(SEXP betaSEXP, SEXP nSEXP, SEXP lambdaSEXP, SEXP lpiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type beta(betaSEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lpi(lpiSEXP);
+    rcpp_result_gen = Rcpp::wrap(grad_ldirpost(beta, n, lambda, lpi));
+    return rcpp_result_gen;
+END_RCPP
+}
+// dH_ldirpost
+NumericVector dH_ldirpost(const NumericVector& beta, int n, const NumericVector& lambda, const NumericVector& lpi);
+RcppExport SEXP _gtclust_dH_ldirpost(SEXP betaSEXP, SEXP nSEXP, SEXP lambdaSEXP, SEXP lpiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type beta(betaSEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lpi(lpiSEXP);
+    rcpp_result_gen = Rcpp::wrap(dH_ldirpost(beta, n, lambda, lpi));
+    return rcpp_result_gen;
+END_RCPP
+}
+// z_ldirpost
+double z_ldirpost(const NumericVector& beta, int n, const NumericVector& lambda, const NumericVector& lpi);
+RcppExport SEXP _gtclust_z_ldirpost(SEXP betaSEXP, SEXP nSEXP, SEXP lambdaSEXP, SEXP lpiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type beta(betaSEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lpi(lpiSEXP);
+    rcpp_result_gen = Rcpp::wrap(z_ldirpost(beta, n, lambda, lpi));
+    return rcpp_result_gen;
+END_RCPP
+}
+// logdetH_ldirpost
+double logdetH_ldirpost(const NumericVector& beta, int n, const NumericVector& lambda, const NumericVector& lpi);
+RcppExport SEXP _gtclust_logdetH_ldirpost(SEXP betaSEXP, SEXP nSEXP, SEXP lambdaSEXP, SEXP lpiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type beta(betaSEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lpi(lpiSEXP);
+    rcpp_result_gen = Rcpp::wrap(logdetH_ldirpost(beta, n, lambda, lpi));
+    return rcpp_result_gen;
+END_RCPP
+}
+// iH_ldirpost
+NumericMatrix iH_ldirpost(const NumericVector& beta, int n, const NumericVector& lambda, const NumericVector& lpi);
+RcppExport SEXP _gtclust_iH_ldirpost(SEXP betaSEXP, SEXP nSEXP, SEXP lambdaSEXP, SEXP lpiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type beta(betaSEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lpi(lpiSEXP);
+    rcpp_result_gen = Rcpp::wrap(iH_ldirpost(beta, n, lambda, lpi));
+    return rcpp_result_gen;
+END_RCPP
+}
+// H_ldirpost
+NumericMatrix H_ldirpost(const NumericVector& beta, int n, const NumericVector& lambda, const NumericVector& lpi);
+RcppExport SEXP _gtclust_H_ldirpost(SEXP betaSEXP, SEXP nSEXP, SEXP lambdaSEXP, SEXP lpiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector& >::type beta(betaSEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lpi(lpiSEXP);
+    rcpp_result_gen = Rcpp::wrap(H_ldirpost(beta, n, lambda, lpi));
+    return rcpp_result_gen;
+END_RCPP
+}
+// ldirpost_norm
+List ldirpost_norm(const NumericVector beta0, int n, const NumericVector& lambda, const NumericVector& lpi);
+RcppExport SEXP _gtclust_ldirpost_norm(SEXP beta0SEXP, SEXP nSEXP, SEXP lambdaSEXP, SEXP lpiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericVector >::type beta0(beta0SEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lpi(lpiSEXP);
+    rcpp_result_gen = Rcpp::wrap(ldirpost_norm(beta0, n, lambda, lpi));
+    return rcpp_result_gen;
+END_RCPP
+}
+// dirichlet_evidence
+double dirichlet_evidence(int n, const NumericVector& lambda, const NumericVector& lpi, const NumericVector& pi);
+RcppExport SEXP _gtclust_dirichlet_evidence(SEXP nSEXP, SEXP lambdaSEXP, SEXP lpiSEXP, SEXP piSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type lpi(lpiSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type pi(piSEXP);
+    rcpp_result_gen = Rcpp::wrap(dirichlet_evidence(n, lambda, lpi, pi));
+    return rcpp_result_gen;
+END_RCPP
+}
 // hclustcc_cpp
 List hclustcc_cpp(const List nb, const NumericMatrix& X, List method_obj);
 RcppExport SEXP _gtclust_hclustcc_cpp(SEXP nbSEXP, SEXP XSEXP, SEXP method_objSEXP) {
@@ -25,6 +151,15 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_gtclust_ldirpost", (DL_FUNC) &_gtclust_ldirpost, 4},
+    {"_gtclust_grad_ldirpost", (DL_FUNC) &_gtclust_grad_ldirpost, 4},
+    {"_gtclust_dH_ldirpost", (DL_FUNC) &_gtclust_dH_ldirpost, 4},
+    {"_gtclust_z_ldirpost", (DL_FUNC) &_gtclust_z_ldirpost, 4},
+    {"_gtclust_logdetH_ldirpost", (DL_FUNC) &_gtclust_logdetH_ldirpost, 4},
+    {"_gtclust_iH_ldirpost", (DL_FUNC) &_gtclust_iH_ldirpost, 4},
+    {"_gtclust_H_ldirpost", (DL_FUNC) &_gtclust_H_ldirpost, 4},
+    {"_gtclust_ldirpost_norm", (DL_FUNC) &_gtclust_ldirpost_norm, 4},
+    {"_gtclust_dirichlet_evidence", (DL_FUNC) &_gtclust_dirichlet_evidence, 4},
     {"_gtclust_hclustcc_cpp", (DL_FUNC) &_gtclust_hclustcc_cpp, 3},
     {NULL, NULL, 0}
 };
