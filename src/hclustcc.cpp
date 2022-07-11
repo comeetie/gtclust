@@ -1,12 +1,167 @@
 #include <Rcpp.h>
 #include <RcppEigen.h>
+extern "C" {
+#include <RcppEigenCholmod.h>
+}
 #include "GTMethod.h"
 #include "node.h"
 #include "LaplaceDirichlet.h"
 using namespace Rcpp;
 
 
+//[[Rcpp::export]]
+Eigen::SparseMatrix<double> sparseBdiag(Rcpp::List B_list)
+{
+  int K = B_list.length();
+  Eigen::VectorXi B_cols(K);
+  for(int k=0;k<K;k++) {
+    Eigen::SparseMatrix<double> Bk = B_list(k);
+    B_cols[k] = Bk.cols();
+  }
+  int sumCols = B_cols.sum();
+  Eigen::SparseMatrix<double> A(sumCols,sumCols);
+  int startCol=0, stopCol=0, Bk_cols;
+  for(int k=0;k<K;k++) {
+    Eigen::SparseMatrix<double> Bk = B_list(k);
+    Bk_cols = Bk.cols();
+    stopCol = startCol + Bk_cols;
+    for(int j=startCol;j<stopCol;j++){
+      A.startVec(j);
+      for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Bk,j-startCol); it; ++it) {
+        A.insertBack(it.row()+startCol,j) = it.value();
+      }
+    }
+    startCol = stopCol;
+  }
+  A.finalize();
+  return A;
+}
 
+
+//[[Rcpp::export]]
+Eigen::SparseMatrix<double> remove1row1col(Eigen::SparseMatrix<double> L){
+  int nbc = L.cols();
+  Eigen::SparseMatrix<double> Lr(nbc-1,nbc-1);
+  Eigen::VectorXi csizes(nbc-1);
+  for(int j=0;j<(nbc-1);j++){
+    csizes(j)=L.col(j+1).nonZeros();
+  }
+  for(Eigen::SparseMatrix<double>::InnerIterator it(L,0); it; ++it) {
+    if(it.row()>0){
+      csizes(it.row()-1)+=-1;
+    }
+  }
+  Lr.reserve(csizes);
+  for(int j=1;j<nbc;j++){
+    for(Eigen::SparseMatrix<double>::InnerIterator it(L,j); it; ++it) {
+      if(it.row()>0){
+        Lr.insert(it.row()-1,j-1) = it.value();
+      }
+    }
+  }
+  Lr.makeCompressed();
+  return Lr;
+}
+  
+//[[Rcpp::export]]
+Eigen::SparseMatrix<double> buildLaplacianR(Eigen::SparseMatrix<double> Lg, Eigen::SparseMatrix<double> Lh, NumericMatrix cutset,NumericVector permutation)
+{
+  int nbc_g = Lg.cols();
+  int nbc_h = Lh.cols();
+  Eigen::SparseMatrix<double> L(nbc_g+nbc_h,nbc_g+nbc_h);
+  Eigen::VectorXi csizes(nbc_g+nbc_h);
+  for(int j=0;j<nbc_g;j++){
+    csizes(j)=Lg.col(j).nonZeros();
+  }
+  for(int j=0;j<nbc_h;j++){
+    csizes(j+nbc_g)=Lh.col(j).nonZeros();
+  }
+  for (int ir=0; ir <cutset.cols(); ++ir){
+    int i = permutation[cutset(ir,0)];
+    int j = permutation[cutset(ir,1)];
+    csizes(i) += 1;
+    csizes(j) += 1;
+  }
+
+  L.reserve(csizes);
+    
+    
+  
+  // insert Lg
+  for(int j=0;j<nbc_g;j++){
+    for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lg,j); it; ++it) {
+      L.insert(it.row(),j) = it.value();
+    }
+  }
+  
+  // insert Lh
+  for(int j=nbc_g;j<(nbc_g+nbc_h);j++){
+    for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lh,j-nbc_g); it; ++it) {
+      L.insert(it.row()+nbc_g,j) = it.value();
+    }
+  }
+  
+  // insert the cutset
+  for (int ir=0; ir <cutset.cols(); ++ir){
+    int i = permutation[cutset(ir,0)];
+    int j = permutation[cutset(ir,1)];
+    L.coeffRef(i,i)+=1;
+    L.coeffRef(j,j)+=1;
+    L.insert(i,j) = -1;
+    L.insert(j,i) = -1;
+  }
+  //L.finalize();
+  L.makeCompressed();
+  return L;
+}
+
+Eigen::SparseMatrix<double> buildLaplacian(Eigen::SparseMatrix<double> Lg, Eigen::SparseMatrix<double> Lh, std::vector<std::pair<int, int>> cutset,NumericVector permutation)
+{
+  int nbc_g = Lg.cols();
+  int nbc_h = Lh.cols();
+  Eigen::SparseMatrix<double> L(nbc_g+nbc_h,nbc_g+nbc_h);
+  Eigen::VectorXi csizes(nbc_g+nbc_h);
+  for(int j=0;j<nbc_g;j++){
+    csizes(j)=Lg.col(j).nonZeros();
+  }
+  for(int j=0;j<nbc_h;j++){
+    csizes(j+nbc_g)=Lh.col(j).nonZeros();
+  }
+  for (auto it=cutset.begin(); it !=cutset.end(); ++it){
+    int i = permutation[it->first];
+    int j = permutation[it->second];
+    csizes(i) += 1;
+    csizes(j) += 1;
+  }
+  
+  L.reserve(csizes);
+  
+  
+  // insert Lg
+  for(int j=0;j<nbc_g;j++){
+    for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lg,j); it; ++it) {
+      L.insert(it.row(),j) = it.value();
+    }
+  }
+  
+  // insert Lh
+  for(int j=nbc_g;j<(nbc_g+nbc_h);j++){
+    for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lh,j-nbc_g); it; ++it) {
+      L.insert(it.row()+nbc_g,j) = it.value();
+    }
+  }
+  
+  // insert the cutset
+  for (auto it=cutset.begin(); it !=cutset.end(); ++it){
+    int i = permutation[it->first];
+    int j = permutation[it->second];
+    L.coeffRef(i,i)+=1;
+    L.coeffRef(j,j)+=1;
+    L.insert(i,j) = -1;
+    L.insert(j,i) = -1;
+  }
+  return L;
+}
 
 void print_pq(std::multimap<double,std::pair<int, int>,std::less<double>> priority_queue){
   for(auto it=priority_queue.begin();it!=priority_queue.end();it++){
@@ -115,6 +270,9 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
     }
   }
   
+  // Eigen solver
+  Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int> >   solver;
+
 
 
   // Lets Merge !
@@ -313,8 +471,6 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
   std::set<int> active_nodes;
   // current negative loglike
   double Llc = 0;
-  double Pc  = 0;
-  Pc += -lgamma(V+1);
   
   
   for(int i=0; i<nb.length(); ++i){
@@ -322,6 +478,9 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
       NumericVector nbi = as<NumericVector>(nb[i]);
       bayesian_node cnode(method->init_node(i,X(i,_)));
       cnode.intra_nodes.push_back(i);
+      Eigen::SparseMatrix<double> Lc(1,1);
+      cnode.Laplacian = Lc;
+      cnode.lognbtree = 0;
       Llc+=cnode.height;
       active_nodes.insert(i);
       for(int n=0; n<nbi.length(); ++n){
@@ -342,7 +501,8 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
       graph[i]=cnode;
     }
   }
-  
+
+
   
   
   // Lets Merge !
@@ -350,10 +510,10 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
   NumericVector height(V-1);
   NumericVector queue_size(V-1);
   NumericVector Ll(V);
-  NumericVector Prior(V);
+  NumericVector PriorIntra(V);
   NumericVector permutation(V);
   Ll[0]=Llc;
-  Prior[0]=Pc;
+  PriorIntra[0]=0;
   for(int imerge=0;imerge<(V-1);imerge++){
     queue_size[imerge]=priority_queue.size();
     int K_before = V-imerge; 
@@ -376,13 +536,6 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     
     height[imerge]=best_merge->first;
     Ll[imerge+1] = Llc+height[imerge];
-    Prior[imerge+1] = Prior[imerge];
-    
-    // a checker
-    //Ll[imerge+1]+=log(K_before-1)-log(V-K_before+1);
-    //Prior[imerge+1]+=log(K_before-1)-log(V-K_before+1);
-    Prior[imerge+1]+=lgamma(node_h.size+node_g.size+1)-lgamma(node_h.size+1)-lgamma(node_g.size+1);
-    
     Llc = Ll[imerge+1];
     
     // strore merge move in hclust format with 1 based indices
@@ -410,28 +563,44 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     // update intra node graph
     // add node from g
     new_node.intra_nodes.insert(new_node.intra_nodes.end(),node_g.intra_nodes.begin(),node_g.intra_nodes.end());
-    // add intra links in g
-    new_node.intra_edges.insert(new_node.intra_edges.end(),node_g.intra_edges.begin(),node_g.intra_edges.end());
-    // add nodes from h and change permutation vector 
+    // add nodes from h and change permutation vector for them
     int offset = node_g.size;
     for (auto it=node_h.intra_nodes.begin(); it !=node_h.intra_nodes.end(); ++it){
       new_node.intra_nodes.push_back(*it);
       permutation[*it]=permutation[*it]+offset;
     }
-    // add intra links from h with size of g offset taken into account
-    for (auto it=node_h.intra_edges.begin(); it !=node_h.intra_edges.end(); ++it){
-      new_node.intra_edges.push_back(std::make_pair(it->first+node_g.size,it->second+node_g.size));
-    }
-    // add cut set g,h
+    // get the cutset g,h
     std::vector<std::pair<int, int>> cutset = node_g.neibs.at(h).edges;
-    for (auto it=cutset.begin(); it !=cutset.end(); ++it){
-      new_node.intra_edges.push_back(std::make_pair(permutation[it->first],permutation[it->second]));
-    }
+    
+    // build le laplacian
+    new_node.Laplacian =  buildLaplacian(node_g.Laplacian,node_h.Laplacian,cutset,permutation);
+    // if(new_node.Laplacian.cols()<15){
+    //   Rcout << Eigen::MatrixXd(new_node.Laplacian) << std::endl;
+    // }
+
+    // // Eigen solver
+    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
+    // Compute the numerical factorization 
+    solver.compute(remove1row1col(new_node.Laplacian)); 
+    cholmod_sparse Lchol = Eigen::viewAsCholmod(remove1row1col(new_node.Laplacian));
     
 
+
+    if(solver.info()!=Eigen::Success) {
+      stop("Eigen decomp failed");
+    }else{
+      double ldet = solver.logAbsDeterminant();
+      new_node.lognbtree=0;
+      if(ldet>1e-10){
+        new_node.lognbtree= ldet;
+      }
+      
+      PriorIntra[imerge+1] = PriorIntra[imerge];
+      PriorIntra[imerge+1]+= new_node.lognbtree-node_g.lognbtree-node_h.lognbtree;
+    }
+
     
-    
-    // update the graph and priority queue
+    // update the inter-graph and priority queue
     for(auto nei_g = node_g.neibs.begin();nei_g!=node_g.neibs.end();nei_g++){
       
       int i = g;
@@ -535,7 +704,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
   delete method;
   List res = List::create(Named("merge",merge),
                           Named("Ll",Ll),
-                          Named("Prior",Prior),
+                          Named("PriorIntra",PriorIntra),
                           Named("queue_size",queue_size),
                           Named("data",X),
                           Named("centers",centers),
@@ -544,70 +713,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
 }
 
 
-//[[Rcpp::export]]
-Eigen::SparseMatrix<double> sparseBdiag(Rcpp::List B_list)
-{
-  int K = B_list.length();
-  Eigen::VectorXi B_cols(K);
-  for(int k=0;k<K;k++) {
-    Eigen::SparseMatrix<double> Bk = B_list(k);
-    B_cols[k] = Bk.cols();
-  }
-  int sumCols = B_cols.sum();
-  Eigen::SparseMatrix<double> A(sumCols,sumCols);
-  int startCol=0, stopCol=0, Bk_cols;
-  for(int k=0;k<K;k++) {
-    Eigen::SparseMatrix<double> Bk = B_list(k);
-    Bk_cols = Bk.cols();
-    stopCol = startCol + Bk_cols;
-    for(int j=startCol;j<stopCol;j++){
-      A.startVec(j);
-      for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Bk,j-startCol); it; ++it) {
-        A.insertBack(it.row()+startCol,j) = it.value();
-      }
-    }
-    startCol = stopCol;
-  }
-  A.finalize();
-  return A;
-}
 
-
-Eigen::SparseMatrix<double> buildLaplacian(Eigen::SparseMatrix<double> Lg, Eigen::SparseMatrix<double> Lh, std::vector<std::pair<int, int>> cutset,NumericVector permutation)
-{
-  int nbc_g = Lg.cols();
-  int nbc_h = Lh.cols();
-  Eigen::SparseMatrix<double> L(nbc_g+nbc_h,nbc_g+nbc_h);
-  
-  
-  // insert Lg
-  for(int j=0;j<nbc_g;j++){
-    L.startVec(j);
-    for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lg,j); it; ++it) {
-      L.insertBack(it.row(),j) = it.value();
-    }
-  }
-  
-  // insert Lh
-  for(int j=nbc_g;j<(nbc_g+nbc_h);j++){
-    L.startVec(j);
-    for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lh,j-nbc_g); it; ++it) {
-      L.insertBack(it.row()+nbc_g,j) = it.value();
-    }
-  }
-
-  // insert the cutset
-  for (auto it=cutset.begin(); it !=cutset.end(); ++it){
-    int i = permutation[it->first];
-    int j = permutation[it->second];
-    L.coeffRef(i,i)+=1;
-    L.coeffRef(j,j)+=1;
-    L.insertBack(i,j) = -1;
-    L.insertBack(j,i) = -1;
-  }
-  L.finalize();
-  return L;
-}
 
 
 

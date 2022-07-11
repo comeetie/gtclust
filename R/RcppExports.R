@@ -37,15 +37,23 @@ dirichlet_evidence <- function(n, lambda, lpi, pi) {
     .Call(`_gtclust_dirichlet_evidence`, n, lambda, lpi, pi)
 }
 
+sparseBdiag <- function(B_list) {
+    .Call(`_gtclust_sparseBdiag`, B_list)
+}
+
+remove1row1col <- function(L) {
+    .Call(`_gtclust_remove1row1col`, L)
+}
+
+buildLaplacianR <- function(Lg, Lh, cutset, permutation) {
+    .Call(`_gtclust_buildLaplacianR`, Lg, Lh, cutset, permutation)
+}
+
 hclustcc_cpp <- function(nb, X, method_obj) {
     .Call(`_gtclust_hclustcc_cpp`, nb, X, method_obj)
 }
 
 bayesian_hclustcc_cpp <- function(nb, X, method_obj) {
     .Call(`_gtclust_bayesian_hclustcc_cpp`, nb, X, method_obj)
-}
-
-sparseBdiag <- function(B_list) {
-    .Call(`_gtclust_sparseBdiag`, B_list)
 }
 

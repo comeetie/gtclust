@@ -51,6 +51,7 @@ struct bayesian_node : abstract_node
   std::vector<std::pair<int, int>> intra_edges;
   std::vector<int> intra_nodes;
   Eigen::SparseMatrix<double> Laplacian;
+  double lognbtree;
   bayesian_node(){
   }
   bayesian_node(abstract_node n){

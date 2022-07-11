@@ -51,10 +51,10 @@ plot(geocutree(hc_res,7))
 nb = sf::st_relate(links.sf,links.sf, pattern = "F***T****")
 class(nb)="list"
 
-k_max= 350
+k_max= 100
 N=nrow(links)
 pr=sptree_prior(hc_res,k_max)
 pr$Cnk=lgamma(N)-lgamma(1:k_max)-lgamma(2013-2:(k_max+1))
 pr$ptot=pr$inter+pr$intra-pr$intra[1]#-pr$Cnk-lgamma(1:k_max+1)
-pr$Ll=-sol$Ll[N:(N-k_max+1)]
+pr$Ll=-hc_res$Ll[N:(N-k_max+1)]
 
