@@ -4,12 +4,12 @@
 \alias{sptree_prior}
 \title{Compute the spanning tree prior of a solution over a range of k value}
 \usage{
-sptree_prior(sol, k)
+sptree_prior(sol, k_max)
 }
 \arguments{
 \item{sol}{a gtclust bayesian clustering solution}
 
-\item{k}{the maximum value of k for which the prior should be calculated}
+\item{k_max}{the maximum value of k for which the prior should be calculated}
 }
 \value{
 the log of the prior

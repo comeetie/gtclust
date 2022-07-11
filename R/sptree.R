@@ -148,3 +148,9 @@ sptree_prior=function(sol,k_max){
   pr$Ll=-sol$Ll[N:(N-k_max+1)]
   pr
 }
+
+
+
+
+
+
