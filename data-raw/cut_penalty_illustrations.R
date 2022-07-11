@@ -15,7 +15,7 @@ library(dplyr)
 #   add_osm_feature(key = 'highway') %>%
 #   osmdata_sf()
 
-plot(roads_amboise$osm_lines |> st_geometry())
+#plot(roads_amboise$osm_lines |> st_geometry())
 
 roads_amboise_small = read_sf("./data-raw/roads_amboise_small.gpkg")
 
