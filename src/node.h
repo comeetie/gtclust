@@ -40,6 +40,9 @@ struct multiedge
     size=size+tomerge.size;
     edges.insert(edges.end(),tomerge.edges.begin(),tomerge.edges.end());
   }
+  void update_height(double h){
+    height = h;
+  }
   multiedge(int s, double h){ size=s;height=h;};
   
 };

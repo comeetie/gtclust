@@ -68,19 +68,24 @@ Eigen::SparseMatrix<double> buildLaplacianR(Eigen::SparseMatrix<double> Lg, Eige
 {
   int nbc_g = Lg.cols();
   int nbc_h = Lh.cols();
-  Eigen::SparseMatrix<double> L(nbc_g+nbc_h,nbc_g+nbc_h);
-  Eigen::VectorXi csizes(nbc_g+nbc_h);
+  Eigen::SparseMatrix<double> L(nbc_g+nbc_h-1,nbc_g+nbc_h-1);
+  Eigen::VectorXi csizes(nbc_g+nbc_h-1);
   for(int j=0;j<nbc_g;j++){
     csizes(j)=Lg.col(j).nonZeros();
   }
-  for(int j=0;j<nbc_h;j++){
+  for(int j=0;j<(nbc_h-1);j++){
     csizes(j+nbc_g)=Lh.col(j).nonZeros();
   }
   for (int ir=0; ir <cutset.cols(); ++ir){
     int i = permutation[cutset(ir,0)];
+    if(i<(nbc_g+nbc_h-1)){
+      csizes(i) += 1;
+    }
+    
     int j = permutation[cutset(ir,1)];
-    csizes(i) += 1;
-    csizes(j) += 1;
+    if(j<(nbc_g+nbc_h-1)){
+      csizes(j) += 1;
+    }
   }
 
   L.reserve(csizes);
@@ -95,9 +100,11 @@ Eigen::SparseMatrix<double> buildLaplacianR(Eigen::SparseMatrix<double> Lg, Eige
   }
   
   // insert Lh
-  for(int j=nbc_g;j<(nbc_g+nbc_h);j++){
+  for(int j=nbc_g;j<(nbc_g+nbc_h-1);j++){
     for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lh,j-nbc_g); it; ++it) {
-      L.insert(it.row()+nbc_g,j) = it.value();
+      if(it.row()<(nbc_h-1)){
+        L.insert(it.row()+nbc_g,j) = it.value(); 
+      }
     }
   }
   
@@ -162,6 +169,182 @@ Eigen::SparseMatrix<double> buildLaplacian(Eigen::SparseMatrix<double> Lg, Eigen
   }
   return L;
 }
+
+
+
+double cut_cost(bayesian_node * node_g,bayesian_node * node_h,std::vector<std::pair<int, int>> cutset,NumericVector permutation,NumericVector cl)
+{
+  double logdetdiff = 0;
+  // todo optimize copy of only relevant elements
+  if(cutset.size()>1){
+    
+    // Rcout << "CUT COST" << std::endl; 
+    // Rcout << "cutset size :" <<  cutset.size() << std::endl;
+    
+    
+    
+    Eigen::SparseMatrix<double> Lg = node_g->Laplacian;
+    Eigen::SparseMatrix<double> Lh = node_h->Laplacian;
+    int nbc_g = Lg.cols();
+    int nbc_h = Lh.cols();
+    
+    // analyze the cut and build the cutset in local coordinates
+    int clh =  cl[*node_h->intra_nodes.begin()];
+    std::vector<std::pair<int, int>> localcutset;
+    // cutset sizes
+    Eigen::VectorXi cutcsizes = Eigen::VectorXi::Zero(nbc_g+nbc_h);
+    for (auto it=cutset.begin(); it !=cutset.end(); ++it){
+      int from = permutation[it->first];
+      if(cl[it->first]==clh){
+        from=from+nbc_g;
+      }
+      cutcsizes(from)+=1;
+      int to = permutation[it->second];
+      if(cl[it->second]==clh){
+        to=to+nbc_g;
+      }
+      cutcsizes(to)+=1;
+      //Rcout << from << "--" << to << std::endl; 
+      localcutset.push_back(std::make_pair(from,to));
+    }
+    Eigen::SparseMatrix<double> L(nbc_g+nbc_h-1,nbc_g+nbc_h-1);
+    
+    if(node_h->size>1){
+
+      // do not remove the last node of h if all the cut links are towards it
+      int itoremove = nbc_h+nbc_g-1;
+      if(cutcsizes(itoremove)==cutset.size()){
+        itoremove = nbc_h+nbc_g-2;
+      }
+
+      Eigen::VectorXi csizes(nbc_g+nbc_h-1);
+      for(int j=0;j<nbc_g;j++){
+        csizes(j)=Lg.col(j).nonZeros()+cutcsizes(j);
+      }
+      for(int j=0;j<nbc_h;j++){
+        if((j+nbc_g)<itoremove){
+          csizes(j+nbc_g)=Lh.col(j).nonZeros()+cutcsizes(j+nbc_g);
+        }
+        if((j+nbc_g)>itoremove){
+          csizes(j+nbc_g-1)=Lh.col(j).nonZeros()+cutcsizes(j+nbc_g-1);
+        }
+      }
+    
+      L.reserve(csizes);
+
+      // insert Lg
+      for(int j=0;j<nbc_g;j++){
+        for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lg,j); it; ++it) {
+          L.insert(it.row(),j) = it.value();
+        }
+      }
+
+      // insert Lh except the itoremove row and col
+      for(int j=nbc_g;j<(nbc_g+nbc_h);j++){
+        if(j<itoremove){
+          for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lh,j-nbc_g); it; ++it) {
+            if((it.row()+nbc_g)<itoremove){
+              L.insert(it.row()+nbc_g,j) = it.value();
+            }
+            if((it.row()+nbc_g)>itoremove){
+              L.insert(it.row()+nbc_g-1,j) = it.value();
+            }
+          }
+        }
+
+        if(j>itoremove){
+          for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lh,j-nbc_g); it; ++it) {
+            if((it.row()+nbc_g)<itoremove){
+              L.insert(it.row()+nbc_g,j-1) = it.value();
+            }
+            if((it.row()+nbc_g)>itoremove){
+              L.insert(it.row()+nbc_g-1,j-1) = it.value();
+            }
+          }
+        }
+      }
+    
+      // Rcout << "L before cutset -------------------" <<std::endl;
+      // if(L.cols()<40){
+      //   Rcout << Eigen::MatrixXd(L) << std::endl;
+      // }
+      // insert the cutset
+      for (auto it=localcutset.begin(); it !=localcutset.end(); ++it){
+        int i =it->first;
+        int j = it->second;
+
+
+        if(i!=itoremove){
+          if(i>itoremove){
+            L.coeffRef(i-1,i-1)+=1;
+          }else{
+            L.coeffRef(i,i)+=1;
+          }
+        }
+        if(j!=itoremove){
+          if(j>itoremove){
+            L.coeffRef(j-1,j-1)+=1;
+          }else{
+            L.coeffRef(j,j)+=1;
+          }
+        }
+
+        if(i!=itoremove & j!=itoremove){
+          if(j>itoremove){
+            j--;
+          }
+          if(i>itoremove){
+            i--;
+          }
+          L.insert(i,j) = -1;
+          L.insert(j,i) = -1;
+        }
+      }
+      
+    }else{
+      // only one node in h -> only change the diagonal of Lg
+      for(int j=0;j<nbc_g;j++){
+        for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lg,j); it; ++it) {
+          L.insert(it.row(),j) = it.value();
+        }
+      }
+      for (auto it=localcutset.begin(); it !=localcutset.end(); ++it){
+        int i =it->first;
+        int j = it->second;
+
+        if(i<nbc_g){
+          L.coeffRef(i,i)+=1;
+        }
+        if(j<nbc_g){
+          L.coeffRef(j,j)+=1;
+        }
+      }
+    }
+    // Rcout << "L after cutset -------------------" <<std::endl;
+    // if(L.cols()<40){
+    //   Rcout << Eigen::MatrixXd(L) << std::endl;
+    // }
+
+    //L.makeCompressed();
+    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
+    // Compute the numerical factorization
+    solver.compute(L);
+    if(solver.info()!=Eigen::Success) {
+      stop("Eigen decomp failed");
+    }else{
+      //Rcout << "ldet ----" <<std::endl;
+      double ldet = solver.logAbsDeterminant();
+      //Rcout << ldet << std::endl;
+      logdetdiff = ldet-node_g->lognbtree-node_h->lognbtree;
+      //Rcout << logdetdiff << std::endl;
+    }
+    
+    
+  }
+  
+  return logdetdiff;
+}
+
 
 void print_pq(std::multimap<double,std::pair<int, int>,std::less<double>> priority_queue){
   for(auto it=priority_queue.begin();it!=priority_queue.end();it++){
@@ -270,8 +453,7 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
     }
   }
   
-  // Eigen solver
-  Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int> >   solver;
+
 
 
 
@@ -512,9 +694,14 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
   NumericVector Ll(V);
   NumericVector PriorIntra(V);
   NumericVector permutation(V);
+  NumericVector cl(V);
+  cl = seq(0,V-1);
   Ll[0]=Llc;
   PriorIntra[0]=0;
   for(int imerge=0;imerge<(V-1);imerge++){
+    
+    Rcout << imerge << std::endl;
+    
     queue_size[imerge]=priority_queue.size();
     int K_before = V-imerge; 
     int node_id = V+imerge;
@@ -560,14 +747,17 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     // create a new node
     bayesian_node new_node(method->merge(node_id,&node_g,&node_h,height[imerge]));
     
+    
     // update intra node graph
     // add node from g
     new_node.intra_nodes.insert(new_node.intra_nodes.end(),node_g.intra_nodes.begin(),node_g.intra_nodes.end());
     // add nodes from h and change permutation vector for them
     int offset = node_g.size;
+    int clg = cl[*node_g.intra_nodes.begin()];
     for (auto it=node_h.intra_nodes.begin(); it !=node_h.intra_nodes.end(); ++it){
       new_node.intra_nodes.push_back(*it);
       permutation[*it]=permutation[*it]+offset;
+      cl[*it]=clg;
     }
     // get the cutset g,h
     std::vector<std::pair<int, int>> cutset = node_g.neibs.at(h).edges;
@@ -577,27 +767,31 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     // if(new_node.Laplacian.cols()<15){
     //   Rcout << Eigen::MatrixXd(new_node.Laplacian) << std::endl;
     // }
-
-    // // Eigen solver
-    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
-    // Compute the numerical factorization 
-    solver.compute(remove1row1col(new_node.Laplacian)); 
-    cholmod_sparse Lchol = Eigen::viewAsCholmod(remove1row1col(new_node.Laplacian));
-    
-
-
-    if(solver.info()!=Eigen::Success) {
-      stop("Eigen decomp failed");
-    }else{
-      double ldet = solver.logAbsDeterminant();
-      new_node.lognbtree=0;
-      if(ldet>1e-10){
-        new_node.lognbtree= ldet;
-      }
+    // Rcout << "cutset size" << std::endl;
+    // Rcout << cutset.size() << std::endl;
+    if(cutset.size()>1){
+      // // Eigen solver
+      Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
+      // Compute the numerical factorization 
+      solver.compute(remove1row1col(new_node.Laplacian)); 
+      if(solver.info()!=Eigen::Success) {
+        stop("Eigen decomp failed");
+      }else{
+        double ldet = solver.logAbsDeterminant();
+        new_node.lognbtree=0;
+        if(ldet>1e-10){
+          new_node.lognbtree= ldet;
+        }
       
-      PriorIntra[imerge+1] = PriorIntra[imerge];
-      PriorIntra[imerge+1]+= new_node.lognbtree-node_g.lognbtree-node_h.lognbtree;
+        
+        PriorIntra[imerge+1] = PriorIntra[imerge];
+        PriorIntra[imerge+1]+= new_node.lognbtree-node_g.lognbtree-node_h.lognbtree;
+      }
+    }else{
+        new_node.lognbtree=node_g.lognbtree+node_h.lognbtree;
+        PriorIntra[imerge+1] = PriorIntra[imerge];
     }
+
 
     
     // update the inter-graph and priority queue
@@ -684,12 +878,24 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     // add the newly created node
     graph[node_id]=new_node;
     
+    Rcout << "cc update" << std::endl; 
     // add the new possible merges in the priority queue
     for(auto nei = new_node.neibs.begin();nei!=new_node.neibs.end();nei++){
       multiedge e = nei->second;
       double d = e.height;
       double j = nei->first;
-      priority_queue.insert(std::make_pair(d,std::make_pair(j,node_id)));
+      
+      // update the merge cost to incorporate the prior
+      double cc = cut_cost(&new_node,&graph[j],new_node.neibs.at(j).edges,permutation,cl);
+      Rcout << "----" << std::endl;
+      Rcout << cc << std::endl;
+      Rcout << d << std::endl;
+      Rcout << new_node.neibs.at(j).height<< std::endl;
+      Rcout << graph[j].neibs.at(node_id).height<< std::endl;
+      double nd = d-cc;
+      graph[node_id].neibs.at(j).height=nd;
+      graph[j].neibs.at(node_id).height=nd;
+      priority_queue.insert(std::make_pair(nd,std::make_pair(j,node_id)));
     }
     
   }

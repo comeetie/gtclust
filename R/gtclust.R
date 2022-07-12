@@ -331,7 +331,7 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
   
   nb_c = lapply(adjacencies_list,\(nei){nei-1})
   # run the algorithm
-  res=bayesian_hclustcc_cpp(nb_c,df_scaled,method)
+  res=hclustcc_cpp(nb_c,df_scaled,method)
 
 
 
