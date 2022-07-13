@@ -42,24 +42,41 @@ sum(is.na(links.sf$speed))
 
 
 ggplot(links.sf)+geom_sf(aes(color=speed*3.6),size=1.1)+
-  scale_color_distiller("Speed (km/h)",palette="RdYlGn",direction = 1)+
+  scale_color_distiller("Speed (km/h)",palette="RdYlGn",direction = 1,limits=c(0,65))+
   theme_void()+
-  theme(legend.position="bottom")+
+  theme(legend.position="left")+
   ggtitle("Shenzen speed distribution","8h30-8h45")
 
 
 hc_res=gtclust_lines(links.sf |> select(speed),gtmethod_bayes_dgmm())
+
+gt_res= geocutree(hc_res,14) |> mutate(L=st_length(geometry)) |> filter(L>2500)
+
+ggplot(gt_res)+
+  geom_sf(aes(color=factor(cl)))+
+  theme_void()+
+  scale_color_brewer(palette="Set1",guide="none")+
+  ggtitle("Shenzen clustering results","8h30-8h45")
+
+ggplot(gt_res)+
+  geom_sf(aes(color=speed*3.6))+
+  theme_void()+
+  scale_color_distiller("Speed (km/h)",palette="RdYlGn",direction = 1)+
+  theme(legend.position="left")+
+  ggtitle("Shenzen clustering results","8h30-8h45")
+
 plot(hc_res$Ll)
 plot(geocutree(hc_res,7))
 
-# nb = sf::st_relate(links.sf,links.sf, pattern = "F***T****")
-# class(nb)="list"
-# 
-# k_max= 100
-# N=nrow(links)
-# pr=sptree_prior(hc_res,k_max)
-# pr$Cnk=lgamma(N)-lgamma(1:k_max)-lgamma(2013-2:(k_max+1))
-# pr$ptot=pr$inter+pr$intra-pr$intra[1]#-pr$Cnk-lgamma(1:k_max+1)
-# pr$Ll=-hc_res$Ll[N:(N-k_max+1)]
-# pr$intra_comp=hc_res$PriorIntra[N:(N-k_max+1)]
-# pr
+nb = sf::st_relate(links.sf,links.sf, pattern = "F***T****")
+class(nb)="list"
+
+k_max= 100
+N=nrow(links)
+pr=sptree_prior(hc_res,k_max)
+pr$Cnk=lgamma(N)-lgamma(1:k_max)-lgamma(2013-2:(k_max+1))
+pr$ptot=pr$inter+pr$intra-pr$intra[1]#-pr$Cnk-lgamma(1:k_max+1)
+pr$Ll=hc_res$Ll[N:(N-k_max+1)]
+pr$intra_comp=hc_res$PriorIntra[N:(N-k_max+1)]
+pr$inter_comp=hc_res$PriorInter[N:(N-k_max+1)]
+pr

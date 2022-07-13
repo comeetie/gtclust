@@ -331,15 +331,17 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
   
   nb_c = lapply(adjacencies_list,\(nei){nei-1})
   # run the algorithm
-  res=hclustcc_cpp(nb_c,df_scaled,method)
+  res=bayesian_hclustcc_cpp(nb_c,df_scaled,method)
 
-
-
+  ptree = (res$PriorInter+res$PriorIntra-res$PriorInter[1])
+  Llf = res$Ll + ptree +res$PriorK;
   # format the results in hclust form
   hc_res = list(merge=res$merge,
-                Ll = res$Ll,
-                height=compute_height(res$Ll),
+                Ll = Llf,
+                height=compute_height(-Llf),
                 PriorIntra = res$PriorIntra,
+                PriorInter = res$PriorInter,
+                PriorK = res$PriorK,
                 Queue_size=res$queue_size,
                 order=order_tree(res$merge,nrow(res$merge)),
                 labels=(rownames(df)),
@@ -401,7 +403,7 @@ geocutree=function(tree,k = NULL, h= NULL){
     ck=ck+1
   }
   colnames(clust_x)=colnames(tree$centers)
-  sf::st_sf(cl=1:k,clust_x,geometry=sf::st_as_sfc(clust_geo,crs=sf::st_crs(tree$leafs_geometry)))
+  sf::st_sf(cl=1:k,n=as.vector(table(cl)),clust_x,geometry=sf::st_as_sfc(clust_geo,crs=sf::st_crs(tree$leafs_geometry)))
 }
 
 

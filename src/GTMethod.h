@@ -181,6 +181,7 @@ namespace GTMethod{
       double ldm = log_gauss_evidence(x,S,1,kappa,tau,beta,mu);
       List cstats = List::create(Named("Lp",ldm),
                                  Named("S",S));
+      cnode.height = ldm;
       cnode.stats = cstats;
       return cnode;
     };
@@ -254,6 +255,7 @@ namespace GTMethod{
       double ldm = dirichlet_evidence(1,lambda,log(x),x);
       List cstats = List::create(Named("Lp",ldm),Named("lpi",log(x)));
       cnode.stats = cstats;
+      cnode.height = ldm;
       return cnode;
     };
     double dist(abstract_node * node_g,abstract_node * node_h) {
