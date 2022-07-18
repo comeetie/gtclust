@@ -48,10 +48,11 @@ ggplot(links.sf)+geom_sf(aes(color=speed*3.6),size=1.1)+
   ggtitle("Shenzen speed distribution","8h30-8h45")
 
 
-hc_res=gtclust_lines(links.sf |> select(speed),gtmethod_bayes_dgmm())
+hc_res=gtclust_lines(links.sf |> select(speed)|>mutate(speed=log(speed)),gtmethod_bayes_dgmm())
 
-gt_res= geocutree(hc_res,14) |> mutate(L=st_length(geometry)) |> filter(L>2500)
-
+gt_res= geocutree(hc_res,81) |> mutate(L=st_length(geometry)) |> arrange(desc(L)) |> head(9)
+  
+  
 ggplot(gt_res)+
   geom_sf(aes(color=factor(cl)))+
   theme_void()+

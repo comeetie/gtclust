@@ -337,7 +337,7 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
   Llf = res$Ll + ptree +res$PriorK;
   # format the results in hclust form
   hc_res = list(merge=res$merge,
-                Ll = Llf,
+                Ll = -Llf,
                 height=compute_height(-Llf),
                 PriorIntra = res$PriorIntra,
                 PriorInter = res$PriorInter,
