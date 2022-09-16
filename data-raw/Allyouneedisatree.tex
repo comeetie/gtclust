@@ -1,0 +1,199 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+  ignorenonframetext,
+]{beamer}
+\usepackage{pgfpages}
+\setbeamertemplate{caption}[numbered]
+\setbeamertemplate{caption label separator}{: }
+\setbeamercolor{caption name}{fg=normal text.fg}
+\beamertemplatenavigationsymbolsempty
+% Prevent slide breaks in the middle of a paragraph
+\widowpenalties 1 10000
+\raggedbottom
+\setbeamertemplate{part page}{
+  \centering
+  \begin{beamercolorbox}[sep=16pt,center]{part title}
+    \usebeamerfont{part title}\insertpart\par
+  \end{beamercolorbox}
+}
+\setbeamertemplate{section page}{
+  \centering
+  \begin{beamercolorbox}[sep=12pt,center]{part title}
+    \usebeamerfont{section title}\insertsection\par
+  \end{beamercolorbox}
+}
+\setbeamertemplate{subsection page}{
+  \centering
+  \begin{beamercolorbox}[sep=8pt,center]{part title}
+    \usebeamerfont{subsection title}\insertsubsection\par
+  \end{beamercolorbox}
+}
+\AtBeginPart{
+  \frame{\partpage}
+}
+\AtBeginSection{
+  \ifbibliography
+  \else
+    \frame{\sectionpage}
+  \fi
+}
+\AtBeginSubsection{
+  \frame{\subsectionpage}
+}
+\usepackage{amsmath,amssymb}
+\usepackage{lmodern}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\newif\ifbibliography
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{bm}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathrsfs}
+
+\bmdefine{\partition}{c}
+\bmdefine{\clustcount}{n}
+
+\bmdefine{\sptree}{t}
+\newcommand{\sptreeset}{\mathcal{T}}
+\newcommand{\compat}{\prec}
+\newcommand{\notcompat}{\nprec}
+\newcommand{\pproj}{\diamond}
+\bmdefine{\cutset}{cutset}
+\newcommand{\bx}{\mathbf{x}}
+\newcommand{\lobs}{\mathscr{L}^{obs}}
+
+\newcommand{\Ucolor}[1]{\textcolor[HTML]{c40000}{#1}} 
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same} % disable monospaced font for URLs
+\hypersetup{
+  pdftitle={All you need is a tree},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{All you need is a tree}
+\author{}
+\date{\vspace{-2.5em}2022-07-18}
+
+\begin{document}
+\frame{\titlepage}
+
+\begin{frame}{Setting}
+\protect\hypertarget{setting}{}
+Let \(\partition \in \mathcal{P}_N\) be an ordered partition of
+\(\{1,\hdots,N\}\), that is: \begin{align}
+    \partition = \left\{ \partition_1, \ldots, \partition_K \right\} & & \bigcup_k \partition_k = [N] & & \partition_k \bigcap \partition_l = \emptyset & & 
+\end{align}
+
+Let \(\mathbf{X} = \{\mathbf{x}_1,\hdots,\mathbf{x}_N\}\) be a
+dataset\footnote{This can be extended to a case where $\mathbf{X}$ is an adjacency matrix.}.
+We suppose that all datapoints belonging to the same element of the
+partition are independent and identically distributed, \textit{i.e.}
+conditional independence:
+\[p(\mathbf{x}|\mathbf{c})=\prod_k \int_\theta \prod_{i \in c_k}p(\mathbf{x}_i|\theta)p(\theta)d\theta\]
+\end{frame}
+
+\begin{frame}{Setting}
+\protect\hypertarget{setting-1}{}
+\[\lobs(\mathbf{X},\partition_k)=\log\left(\int_\theta \prod_{i \in c_k}p(\mathbf{x}_i|\theta)p(\theta)d\theta\right)\]
+
+In case of exponential Familly observations :
+
+\[p(\bx|\theta)=\exp\left(\gamma(\theta).T(\bx)-A(\theta)+B(\bx)\right)\]
+and
+\(\lobs(\mathbf{X},\partition_k)=\phi(\sum_{i\in\partition_k}T(\bx_i))\)
+\end{frame}
+
+\begin{frame}{Setting, MAP clustering}
+\protect\hypertarget{setting-map-clustering}{}
+\[\hat{\partition}=\arg\max_{\partition}p(\mathbf{x},\partition)=\arg\max_{\partition}p(\mathbf{x}|\partition)p(\partition)\]
+We need to define a prior for \(\partition\) : \(p(\partition)?\)
+\end{frame}
+
+\begin{frame}{Chinese restaurant process}
+\protect\hypertarget{chinese-restaurant-process}{}
+Process :
+
+\begin{itemize}
+    \item $\frac{\alpha}{n+\alpha}$ new table
+    \item $\frac{n_k}{n+\alpha}$ at table $k$ 
+\end{itemize}
+
+Distribution
+\[p(\mathbf{c}|\alpha)=\frac{\Gamma(\alpha)\alpha^{K}}{\Gamma(\alpha+N))}\prod_{k}\Gamma(n_k)\]
+\end{frame}
+
+\begin{frame}{Uniform}
+\protect\hypertarget{uniform}{}
+Completely uniform:
+\(p(\partition)=\frac{1}{\sum_{k=1}^N\mathcal{B}_n^k k!}\)
+
+Uniform in \(k\) and then uniform over the partitions with \(k\)
+elements: \begin{eqnarray}
+p(K)&=&\frac{1}{N}\\
+p(\partition|K)&=&\frac{1}{\mathcal{B}_n^k k!}
+\end{eqnarray}
+\end{frame}
+
+\begin{frame}{Uniform}
+\protect\hypertarget{uniform-1}{}
+Uniform in \(k\), then uniform over possible counts and then uniform
+over the partitions with \(k\) elements and the specific counts:
+\begin{eqnarray}
+p(K)&=&\frac{1}{N}\\
+p(\mathbf{n}|K)&=&\binom{N-1}{K-1}^{-1}\\
+p(\mathbf{c}|\mathbf{n})&=&\frac{1}{N!}\prod_kn_k! \times \mathbf{1}_{\{c / \mathbf{n}_\mathbf{c} = \mathbf{c} \}} \times \mathbf{1}_{\{c / \vert c \vert = K \}}
+\end{eqnarray}
+\end{frame}
+
+\begin{frame}{Truncated geometric over K}
+\protect\hypertarget{truncated-geometric-over-k}{}
+\begin{eqnarray}
+p(K)&=&\Ucolor{\frac{1}{1-\alpha^N}\alpha^{K-1}(1-\alpha)}\\
+p(\mathbf{n}|K)&=&\frac{1}{C_{N-1}^{K-1}}\\
+p(\mathbf{c}|\mathbf{n})&=&\frac{1}{N!}\prod_kn_k! \times \mathbf{1}_{\{c / \mathbf{n}_\mathbf{c} = \mathbf{c} \}} \times \mathbf{1}_{\{c / \vert c \vert = K \}}
+\end{eqnarray}
+
+\(\alpha=1\) is equivalent to uniform, \(\alpha=0\) to a dirac at
+\(k=1\).
+
+\[p(\mathbf{c}|\alpha)= p (\mathbf{c}, \mathbf{n}_\mathbf{c}, K_\mathbf{c}) = \frac{1}{1-\alpha^N}\alpha^{K-1}(1-\alpha)\frac{1}{C_{N-1}^{K-1}}\frac{1}{N!}\prod_kn_k!\]
+\end{frame}
+
+\end{document}
