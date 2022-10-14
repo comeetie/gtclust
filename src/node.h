@@ -1,6 +1,7 @@
 #ifndef NODE
 #define NODE
-
+#include "SuiteSparse_config/SuiteSparse_config.h"
+#include "CHOLMOD/Include/cholmod.h"
 #include <Rcpp.h>
 
 using namespace Rcpp;
@@ -53,7 +54,8 @@ struct bayesian_node : abstract_node
   std::map<int,multiedge,std::greater<double>> neibs;
   std::vector<std::pair<int, int>> intra_edges;
   std::vector<int> intra_nodes;
-  Eigen::SparseMatrix<double> Laplacian;
+  cholmod_factor * L;
+  cholmod_sparse * col;
   double lognbtree;
   bayesian_node(){
   }

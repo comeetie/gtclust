@@ -2,6 +2,7 @@ library(R.matlab)
 library(dplyr)
 library(sf)
 library(ggplot2)
+library(gtclust)
 nodes_raw  = readMat("./data-raw/NODES.mat")
 nodes = data.frame(x=nodes_raw$Node[,1],y=nodes_raw$Node[,2],id=1:nrow(nodes_raw$Node))
 
@@ -72,7 +73,7 @@ plot(geocutree(hc_res,7))
 nb = sf::st_relate(links.sf,links.sf, pattern = "F***T****")
 class(nb)="list"
 
-k_max= 100
+k_max= 20
 N=nrow(links)
 pr=sptree_prior(hc_res,k_max)
 pr$Cnk=lgamma(N)-lgamma(1:k_max)-lgamma(2013-2:(k_max+1))

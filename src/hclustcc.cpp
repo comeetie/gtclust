@@ -1,464 +1,50 @@
 #include <Rcpp.h>
-#include <RcppEigen.h>
-extern "C" {
-#include <RcppEigenCholmod.h>
-}
 #include "GTMethod.h"
 #include "node.h"
 #include "LaplaceDirichlet.h"
+#include "cholmod_tools.h"
 using namespace Rcpp;
 
 
-//[[Rcpp::export]]
-Eigen::SparseMatrix<double> sparseBdiag(Rcpp::List B_list)
-{
-  int K = B_list.length();
-  Eigen::VectorXi B_cols(K);
-  for(int k=0;k<K;k++) {
-    Eigen::SparseMatrix<double> Bk = B_list(k);
-    B_cols[k] = Bk.cols();
-  }
-  int sumCols = B_cols.sum();
-  Eigen::SparseMatrix<double> A(sumCols,sumCols);
-  int startCol=0, stopCol=0, Bk_cols;
-  for(int k=0;k<K;k++) {
-    Eigen::SparseMatrix<double> Bk = B_list(k);
-    Bk_cols = Bk.cols();
-    stopCol = startCol + Bk_cols;
-    for(int j=startCol;j<stopCol;j++){
-      A.startVec(j);
-      for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Bk,j-startCol); it; ++it) {
-        A.insertBack(it.row()+startCol,j) = it.value();
-      }
-    }
-    startCol = stopCol;
-  }
-  A.finalize();
-  return A;
-}
 
 
-//[[Rcpp::export]]
-Eigen::SparseMatrix<double> remove1row1col(Eigen::SparseMatrix<double> L){
-  int nbc = L.cols();
-  Eigen::SparseMatrix<double> Lr(nbc-1,nbc-1);
-  Eigen::VectorXi csizes(nbc-1);
-  for(int j=0;j<(nbc-1);j++){
-    csizes(j)=L.col(j+1).nonZeros();
-  }
-  for(Eigen::SparseMatrix<double>::InnerIterator it(L,0); it; ++it) {
-    if(it.row()>0){
-      csizes(it.row()-1)+=-1;
-    }
-  }
-  Lr.reserve(csizes);
-  for(int j=1;j<nbc;j++){
-    for(Eigen::SparseMatrix<double>::InnerIterator it(L,j); it; ++it) {
-      if(it.row()>0){
-        Lr.insert(it.row()-1,j-1) = it.value();
-      }
-    }
-  }
-  Lr.makeCompressed();
-  return Lr;
-}
-
-//[[Rcpp::export]]
-Eigen::SparseMatrix<double> buildLaplacianR(Eigen::SparseMatrix<double> Lg, Eigen::SparseMatrix<double> Lh, NumericMatrix cutset,NumericVector permutation)
-{
-  int nbc_g = Lg.cols();
-  int nbc_h = Lh.cols();
-  Eigen::SparseMatrix<double> L(nbc_g+nbc_h-1,nbc_g+nbc_h-1);
-  Eigen::VectorXi csizes(nbc_g+nbc_h-1);
-  for(int j=0;j<nbc_g;j++){
-    csizes(j)=Lg.col(j).nonZeros();
-  }
-  for(int j=0;j<(nbc_h-1);j++){
-    csizes(j+nbc_g)=Lh.col(j).nonZeros();
-  }
-  for (int ir=0; ir <cutset.cols(); ++ir){
-    int i = permutation[cutset(ir,0)];
-    if(i<(nbc_g+nbc_h-1)){
-      csizes(i) += 1;
-    }
-    
-    int j = permutation[cutset(ir,1)];
-    if(j<(nbc_g+nbc_h-1)){
-      csizes(j) += 1;
-    }
-  }
-  
-  L.reserve(csizes);
-  
-  
-  
-  // insert Lg
-  for(int j=0;j<nbc_g;j++){
-    for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lg,j); it; ++it) {
-      L.insert(it.row(),j) = it.value();
-    }
-  }
-  
-  // insert Lh
-  for(int j=nbc_g;j<(nbc_g+nbc_h-1);j++){
-    for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lh,j-nbc_g); it; ++it) {
-      if(it.row()<(nbc_h-1)){
-        L.insert(it.row()+nbc_g,j) = it.value(); 
-      }
-    }
-  }
-  
-  // insert the cutset
-  for (int ir=0; ir <cutset.cols(); ++ir){
-    int i = permutation[cutset(ir,0)];
-    int j = permutation[cutset(ir,1)];
-    L.coeffRef(i,i)+=1;
-    L.coeffRef(j,j)+=1;
-    L.insert(i,j) = -1;
-    L.insert(j,i) = -1;
-  }
-  //L.finalize();
-  L.makeCompressed();
-  return L;
-}
-
-Eigen::SparseMatrix<double> buildLaplacian(Eigen::SparseMatrix<double> Lg, Eigen::SparseMatrix<double> Lh, std::vector<std::pair<int, int>> cutset,NumericVector permutation)
-{
-  int nbc_g = Lg.cols();
-  int nbc_h = Lh.cols();
-  Eigen::SparseMatrix<double> L(nbc_g+nbc_h,nbc_g+nbc_h);
-  Eigen::VectorXi csizes(nbc_g+nbc_h);
-  for(int j=0;j<nbc_g;j++){
-    csizes(j)=Lg.col(j).nonZeros();
-  }
-  for(int j=0;j<nbc_h;j++){
-    csizes(j+nbc_g)=Lh.col(j).nonZeros();
-  }
-  for (auto it=cutset.begin(); it !=cutset.end(); ++it){
-    int i = permutation[it->first];
-    int j = permutation[it->second];
-    csizes(i) += 1;
-    csizes(j) += 1;
-  }
-  
-  L.reserve(csizes);
-  
-  
-  // insert Lg
-  for(int j=0;j<nbc_g;j++){
-    for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lg,j); it; ++it) {
-      L.insert(it.row(),j) = it.value();
-    }
-  }
-  
-  // insert Lh
-  for(int j=nbc_g;j<(nbc_g+nbc_h);j++){
-    for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lh,j-nbc_g); it; ++it) {
-      L.insert(it.row()+nbc_g,j) = it.value();
-    }
-  }
-  
-  // insert the cutset
-  for (auto it=cutset.begin(); it !=cutset.end(); ++it){
-    int i = permutation[it->first];
-    int j = permutation[it->second];
-    L.coeffRef(i,i)+=1;
-    L.coeffRef(j,j)+=1;
-    L.insert(i,j) = -1;
-    L.insert(j,i) = -1;
-  }
-  return L;
-}
-
-
-
-double cut_cost(bayesian_node * node_g,bayesian_node * node_h,std::vector<std::pair<int, int>> cutset,NumericVector permutation,NumericVector cl)
+double cut_cost(bayesian_node * node_g,bayesian_node * node_h,std::vector<std::pair<int, int>> cutset,NumericVector permutation,NumericVector cl,cholmod_common * com)
 {
   double logdetdiff = 0;
   // todo optimize copy of only relevant elements
   if(cutset.size()>1){
-    
-    // Rcout << "CUT COST" << std::endl; 
-    // Rcout << "cutset size :" <<  cutset.size() << std::endl;
-    
-    
-    
-    Eigen::SparseMatrix<double> Lg = node_g->Laplacian;
-    Eigen::SparseMatrix<double> Lh = node_h->Laplacian;
-    int nbc_g = Lg.cols();
-    int nbc_h = Lh.cols();
-    
     // analyze the cut and build the cutset in local coordinates
     int clh =  cl[*node_h->intra_nodes.begin()];
-    std::vector<std::pair<int, int>> localcutset;
+    int nbc_g = node_g->L->n;
+    int r = 0;
+    NumericMatrix cutset_loc(cutset.size(),2);
     // cutset sizes
-    Eigen::VectorXi cutcsizes = Eigen::VectorXi::Zero(nbc_g+nbc_h);
     for (auto it=cutset.begin(); it !=cutset.end(); ++it){
       int from = permutation[it->first];
       if(cl[it->first]==clh){
         from=from+nbc_g;
       }
-      cutcsizes(from)+=1;
       int to = permutation[it->second];
       if(cl[it->second]==clh){
         to=to+nbc_g;
       }
-      cutcsizes(to)+=1;
       //Rcout << from << "--" << to << std::endl; 
-      localcutset.push_back(std::make_pair(from,to));
+      cutset_loc(r,0)=from;
+      cutset_loc(r,0)=to;
     }
-    Eigen::SparseMatrix<double> L(nbc_g+nbc_h-1,nbc_g+nbc_h-1);
-    
-    if(node_h->size>1){
-      
-      // do not remove the last node of h if all the cut links are towards it
-      int itoremove = nbc_h+nbc_g-1;
-      if(cutcsizes(itoremove)==cutset.size()){
-        itoremove = nbc_h+nbc_g-2;
-      }
-      
-      Eigen::VectorXi csizes(nbc_g+nbc_h-1);
-      for(int j=0;j<nbc_g;j++){
-        csizes(j)=Lg.col(j).nonZeros()+cutcsizes(j);
-      }
-      for(int j=0;j<nbc_h;j++){
-        if((j+nbc_g)<itoremove){
-          csizes(j+nbc_g)=Lh.col(j).nonZeros()+cutcsizes(j+nbc_g);
-        }
-        if((j+nbc_g)>itoremove){
-          csizes(j+nbc_g-1)=Lh.col(j).nonZeros()+cutcsizes(j+nbc_g-1);
-        }
-      }
-      
-      L.reserve(csizes);
-      
-      // insert Lg
-      for(int j=0;j<nbc_g;j++){
-        for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lg,j); it; ++it) {
-          L.insert(it.row(),j) = it.value();
-        }
-      }
-      
-      // insert Lh except the itoremove row and col
-      for(int j=nbc_g;j<(nbc_g+nbc_h);j++){
-        if(j<itoremove){
-          for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lh,j-nbc_g); it; ++it) {
-            if((it.row()+nbc_g)<itoremove){
-              L.insert(it.row()+nbc_g,j) = it.value();
-            }
-            if((it.row()+nbc_g)>itoremove){
-              L.insert(it.row()+nbc_g-1,j) = it.value();
-            }
-          }
-        }
-        
-        if(j>itoremove){
-          for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lh,j-nbc_g); it; ++it) {
-            if((it.row()+nbc_g)<itoremove){
-              L.insert(it.row()+nbc_g,j-1) = it.value();
-            }
-            if((it.row()+nbc_g)>itoremove){
-              L.insert(it.row()+nbc_g-1,j-1) = it.value();
-            }
-          }
-        }
-      }
-      
-      // Rcout << "L before cutset -------------------" <<std::endl;
-      // if(L.cols()<40){
-      //   Rcout << Eigen::MatrixXd(L) << std::endl;
-      // }
-      // insert the cutset
-      for (auto it=localcutset.begin(); it !=localcutset.end(); ++it){
-        int i =it->first;
-        int j = it->second;
-        
-        
-        if(i!=itoremove){
-          if(i>itoremove){
-            L.coeffRef(i-1,i-1)+=1;
-          }else{
-            L.coeffRef(i,i)+=1;
-          }
-        }
-        if(j!=itoremove){
-          if(j>itoremove){
-            L.coeffRef(j-1,j-1)+=1;
-          }else{
-            L.coeffRef(j,j)+=1;
-          }
-        }
-        
-        if(i!=itoremove & j!=itoremove){
-          if(j>itoremove){
-            j--;
-          }
-          if(i>itoremove){
-            i--;
-          }
-          L.insert(i,j) = -1;
-          L.insert(j,i) = -1;
-        }
-      }
-      
-    }else{
-      // only one node in h -> only change the diagonal of Lg
-      for(int j=0;j<nbc_g;j++){
-        for(Eigen::SparseMatrix<double,0,int>::InnerIterator it(Lg,j); it; ++it) {
-          L.insert(it.row(),j) = it.value();
-        }
-      }
-      for (auto it=localcutset.begin(); it !=localcutset.end(); ++it){
-        int i =it->first;
-        int j = it->second;
-        
-        if(i<nbc_g){
-          L.coeffRef(i,i)+=1;
-        }
-        if(j<nbc_g){
-          L.coeffRef(j,j)+=1;
-        }
-      }
-    }
-    // Rcout << "L after cutset -------------------" <<std::endl;
-    // if(L.cols()<40){
-    //   Rcout << Eigen::MatrixXd(L) << std::endl;
-    // }
-    
-    //L.makeCompressed();
-    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
-    // Compute the numerical factorization
-    solver.compute(L);
-    if(solver.info()!=Eigen::Success) {
-      stop("Eigen decomp failed");
-    }else{
-      //Rcout << "ldet ----" <<std::endl;
-      double ldet = solver.logAbsDeterminant();
-      //Rcout << ldet << std::endl;
-      logdetdiff = ldet-node_g->lognbtree-node_h->lognbtree-log(cutset.size());
-      //Rcout << logdetdiff << std::endl;
-    }
-    
-    
+    double ldet = cholmod_tools_Lup_logdet(node_g->L,node_h->L,node_g->col,cutset_loc,com);
+    logdetdiff = ldet-node_g->lognbtree-node_h->lognbtree-log(cutset.size());
   }
   
   return logdetdiff;
 }
 
 
-Eigen::SparseMatrix<double> inter_to_sparse(std::vector<bayesian_node> graph,  std::set<int> active_nodes){
-  
-  int d = active_nodes.size();
-  Eigen::SparseMatrix<double> L(d,d);
-  std::vector<int> csizes;
-  std::map<int, int,std::less<double>> indices;
-  int col = 0;
-  for(auto it = active_nodes.begin(); it != active_nodes.end(); ++it ) {
-    int i = *it;
-    indices.insert(std::make_pair(i,col));
-    csizes.insert(csizes.begin()+col,graph[i].neibs.size()+1);
-    col++;
-  }
-  L.reserve(csizes);
-  for(auto it = active_nodes.begin(); it != active_nodes.end(); ++it ) {
-    int i = *it;
-    int g = 0;
-    auto ii =indices.find(i);
-    if(ii!=indices.end()){
-      g = ii->second;
-    }else{
-      stop("Index problem during inter graph serialization.");
-    }
-    for (auto itr = graph[i].neibs.begin(); itr!=graph[i].neibs.end();++itr){
-      int j = itr->first;
-      
-      int h = 0;
-      auto jj =indices.find(j);
-      if(jj!=indices.end()){
-        h = jj->second;
-      }else{
-        stop("Index problem during inter graph serialization.");
-      }
-      multiedge e = itr->second;
-      L.insert(g,h) = -e.size;
-      if(g>h){
-        L.coeffRef(h,h)+=e.size;
-        L.coeffRef(g,g)+=e.size;
-      }
-      
-    }
-  }
-  return L;
-}
-
-
-
 double prior_inter(std::vector<bayesian_node> graph,  std::set<int> active_nodes){
   
   int d = active_nodes.size();
   double logdet = 0;
-  Eigen::SparseMatrix<double> L(d-1,d-1);
-  std::vector<int> csizes;
-  std::map<int, int,std::less<double>> indices;
-  int col = 0;
-  for(auto it = active_nodes.begin(); it != active_nodes.end(); ++it ) {
-    int i = *it;
-    indices.insert(std::make_pair(i,col));
-    if(col<(d-1)){
-      csizes.insert(csizes.begin()+col,graph[i].neibs.size()+1);
-    }
-    col++;
-  }
-  L.reserve(csizes);
-  for(auto it = active_nodes.begin(); it != active_nodes.end(); ++it ) {
-    int i = *it;
-    int g = 0;
-    auto ii =indices.find(i);
-    if(ii!=indices.end()){
-      g = ii->second;
-    }else{
-      stop("Index problem during inter graph serialization.");
-    }
-    // Laplacian creation without last row / col
-    for (auto itr = graph[i].neibs.begin(); itr!=graph[i].neibs.end();++itr){
-      int j = itr->first;
-      
-      int h = 0;
-      auto jj =indices.find(j);
-      if(jj!=indices.end()){
-        h = jj->second;
-      }else{
-        stop("Index problem during inter graph serialization.");
-      }
-      multiedge e = itr->second;
-      if(g!=(d-1) && h!=(d-1)){
-        L.insert(g,h) = -e.size;
-      }
-      
-      
-      if(g>h){
-        if(h!=(d-1)){
-          L.coeffRef(h,h)+=e.size;
-        }
-        if(g!=(d-1)){
-          L.coeffRef(g,g)+=e.size;
-        }
-      }
-      
-    }
-  }
-  //L.makeCompressed();
-  //Rcout << Eigen::MatrixXd(inter_to_sparse(graph,active_nodes)) << std::endl;
-  //Rcout << Eigen::MatrixXd(L) << std::endl;
-  Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
-  // Compute the numerical factorization
-  solver.compute(L);
-  if(solver.info()!=Eigen::Success) {
-    stop("Eigen decomp failed");
-  }else{
-    logdet = solver.logAbsDeterminant();
-  }
-  
+
 
   return logdet;
 }
@@ -751,6 +337,9 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
 List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
   
   
+  // start cholmod
+  cholmod_common c ;
+  cholmod_start (&c) ; /* start CHOLMOD */
   
   
   int V = X.nrow();
@@ -771,14 +360,16 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
   // current negative loglike
   double Llc = 0;
   
-  
+  Rcout << "init" << std::endl;
   for(int i=0; i<nb.length(); ++i){
     if(nb[i]!=R_NilValue) {
       NumericVector nbi = as<NumericVector>(nb[i]);
       bayesian_node cnode(method->init_node(i,X(i,_)));
       cnode.intra_nodes.push_back(i);
-      Eigen::SparseMatrix<double> Lc(1,1);
-      cnode.Laplacian = Lc;
+
+      // init cholevsky
+      cnode.L = init_factor(&c);
+      cnode.col = cholmod_allocate_sparse(1,1,1,true,true,0,CHOLMOD_REAL, &c);
       cnode.lognbtree = 0;
       Llc+=cnode.height;
       active_nodes.insert(i);
@@ -817,8 +408,10 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
   cl = seq(0,V-1);
   Ll[0]=Llc;
   PriorIntra[0]=0;
+  Rcout << "Main loop" << std::endl;
+  // (V-1)
   for(int imerge=0;imerge<(V-1);imerge++){
-    
+    Rcout << "IIII :" << imerge <<  std::endl;
 
     
     queue_size[imerge]=priority_queue.size();
@@ -876,29 +469,24 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     // get the cutset g,h
     std::vector<std::pair<int, int>> cutset = node_g.neibs.at(h).edges;
     
-    // build le laplacian
-    new_node.Laplacian =  buildLaplacian(node_g.Laplacian,node_h.Laplacian,cutset,permutation);
-    // if(new_node.Laplacian.cols()<15){
-    //   Rcout << Eigen::MatrixXd(new_node.Laplacian) << std::endl;
-    // }
-    // Rcout << "cutset size" << std::endl;
-    // Rcout << cutset.size() << std::endl;
+    // build cholevky factorization of new node
+    new_node.L =  cholmod_tools_Lup(node_g.L,node_h.L,node_g.col,cutset,permutation,&c);
+    // update remaining col
+    new_node.col =  cholmod_tools_colup(new_node.L->n,node_h.col,cutset,permutation,&c);
+    // store lognbtree
+    new_node.lognbtree =  cholmod_tools_logdet(new_node.L,&c);
+    Rcout << "lognbtree :" << new_node.lognbtree << std::endl;
+    // free matrices in children
+    cholmod_free_factor (&node_g.L, &c) ; 
+    cholmod_free_factor (&node_h.L, &c) ; 
+    cholmod_free_sparse (&node_g.col, &c) ;
+    cholmod_free_sparse (&node_h.col, &c) ;
+    
+
     if(cutset.size()>1){
-      // // Eigen solver
-      Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
-      // Compute the numerical factorization 
-      solver.compute(remove1row1col(new_node.Laplacian)); 
-      if(solver.info()!=Eigen::Success) {
-        stop("Eigen decomp failed");
-      }else{
-        double ldet = solver.logAbsDeterminant();
-        new_node.lognbtree=0;
-        if(ldet>1e-10){
-          new_node.lognbtree= ldet;
-        }
+        
         PriorIntra[imerge+1] = PriorIntra[imerge];
         PriorIntra[imerge+1]+= new_node.lognbtree-node_g.lognbtree-node_h.lognbtree;
-      }
     }else{
       new_node.lognbtree=node_g.lognbtree+node_h.lognbtree;
       PriorIntra[imerge+1] = PriorIntra[imerge];
@@ -1002,7 +590,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
       double j = nei->first;
       
       // update the merge cost to incorporate the prior
-      double cc = cut_cost(&new_node,&graph[j],new_node.neibs.at(j).edges,permutation,cl);
+      double cc = cut_cost(&new_node,&graph[j],new_node.neibs.at(j).edges,permutation,cl,&c);
       double nd = d-cc;
       graph[node_id].neibs.at(j).height=nd;
       graph[j].neibs.at(node_id).height=nd;
@@ -1040,6 +628,8 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
                           Named("centers",centers),
                           Named("permutation",permutation),
                           Named("k.relaxed",1));
+
+  cholmod_finish (&c) ; /* finish CHOLMOD */
   return res;
 }
 
