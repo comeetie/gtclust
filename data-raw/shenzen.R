@@ -82,3 +82,10 @@ pr$Ll=hc_res$Ll[N:(N-k_max+1)]
 pr$intra_comp=hc_res$PriorIntra[N:(N-k_max+1)]
 pr$inter_comp=hc_res$PriorInter[N:(N-k_max+1)]
 pr
+
+
+library(gtclust)
+nb=list(c(1,2),c(0,2),c(0,1,3),c(2))
+X=matrix(runif(4*2),nrow=4)
+
+gtclust:::bayesian_hclustcc_cpp(nb,X,gtmethod_bayes_dgmm())

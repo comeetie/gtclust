@@ -56,6 +56,7 @@ struct bayesian_node : abstract_node
   std::vector<int> intra_nodes;
   cholmod_factor * L;
   cholmod_sparse * col;
+  int cl;
   double lognbtree;
   bayesian_node(){
   }

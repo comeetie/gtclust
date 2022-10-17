@@ -474,6 +474,163 @@ cholmod_factor * init_factor(cholmod_common * com){
   return(L);
 }
 
+
+cholmod_sparse* cholmod_tools_colinter(std::map<int, int> inter,int i, int n, int pivot,cholmod_common* com){
+  auto search = inter.find(pivot);
+  int nbval = inter.size();
+  if(search!=inter.end()){
+    inter.erase(search);
+    nbval--;
+  }
+  cholmod_sparse * col = cholmod_allocate_sparse(n,1,nbval,true,true,0,CHOLMOD_REAL, com);
+  int vp = 0;
+  for (auto itr = inter.begin(); itr!=inter.end();++itr){
+    ((int *)col->i)[vp]=itr->first;
+    ((double *)col->x)[vp]=itr->second;
+    vp++;
+  }
+  ((int *)col->p)[0]=0;
+  ((int *)col->p)[1]=nbval;
+  return col;
+}
+
+
+
+
+cholmod_sparse* cholmod_tools_ltoadd_inter(int n, int g, int h, int pivot, std::map<int, int> inter_h,cholmod_common* com ) {
+  
+  auto search = inter_h.find(g);
+  //remove g-h from h 
+  if(search!=inter_h.end()){
+    inter_h.erase(search);
+  }
+  //remove diagonals
+  search = inter_h.find(h);
+  if(search!=inter_h.end()){
+    inter_h.erase(search);
+  }
+  // links with the pivot ?
+  search = inter_h.find(pivot);
+  double piv_val = 0;
+  int link_piv = 0;
+  if(search!=inter_h.end()){
+    link_piv = 1;
+    piv_val = - search->second;
+    inter_h.erase(search);
+  }
+  
+  int nb_links = inter_h.size();
+  
+  cholmod_sparse *S;
+  
+  S = cholmod_allocate_sparse(n,nb_links+link_piv,2*nb_links+link_piv,true,true,0,CHOLMOD_REAL, com);
+  int r = 0;
+  int u,v;
+  ((int*)S->p)[0] = 0;
+  // ! handle case were h or h is the pivot not done
+  for (auto itr = inter_h.begin(); itr!=inter_h.end();++itr){
+    ((int*)S->p)[r+1] =((int*)S->p)[r]+2;
+    if(itr->first>g){
+      u=g;
+      v=itr->first;
+    }else{
+      u=itr->first;
+      v=g;
+    }
+    ((int*)S->i)[r*2] = u;
+    ((double*)S->x)[r*2] = -sqrt(-itr->second);
+    ((int*)S->i)[r*2+1] = v;
+    ((double*)S->x)[r*2+1] = sqrt(-itr->second);
+    r++;
+  }
+  if(link_piv==1){
+    ((int*)S->p)[r+1] =((int*)S->p)[r]+1;
+    ((int*)S->i)[r*2] = g;
+    ((double*)S->x)[r*2] = sqrt(piv_val);
+  }
+  return(S);
+}
+
+
+
+cholmod_sparse* cholmod_tools_ltodel_inter(int n, int g, int h, int pivot, std::map<int, int> inter_h,cholmod_common* com ) {
+  
+  //remove diagonals
+  auto search = inter_h.find(h);
+  if(search!=inter_h.end()){
+    inter_h.erase(search);
+  }
+
+  // links with pivot ?
+  search = inter_h.find(pivot);
+  if(search!=inter_h.end()){
+    inter_h.erase(search);
+  }
+  
+
+  
+  int nb_links = inter_h.size();
+  cholmod_sparse *S;
+  
+  S = cholmod_allocate_sparse(n,nb_links,nb_links,true,true,0,CHOLMOD_REAL, com);
+  int r = 0;
+  ((int*)S->p)[0] = 0;
+  for (auto itr = inter_h.begin(); itr!=inter_h.end();++itr){
+    ((int*)S->p)[r+1] =((int*)S->p)[r]+1;
+    ((int*)S->i)[r] = itr->first;
+    ((double*)S->x)[r] = sqrt(-itr->second);
+    r++;
+  }
+  return(S);
+}
+
+
+cholmod_sparse * inter_to_sparse(std::vector<bayesian_node> graph,int V,int nblinks,cholmod_common * com){
+
+  cholmod_sparse * L = cholmod_allocate_sparse(V,V,nblinks+V,true,false,-1,CHOLMOD_REAL, com);
+  int ichol = 0;
+  
+  ((int*)L->p)[0]=0;
+  for(int icol=0;icol<V;icol++) {
+    std::map<int, int> wlinks;
+    int diagval = 0;
+    for (auto itr = graph[icol].neibs.begin(); itr!=graph[icol].neibs.end();++itr){
+      int jg = itr->first;
+      int j = graph[jg].cl;
+      multiedge e = itr->second;
+      diagval+=e.size;
+      if(j>icol){
+        wlinks.insert(std::make_pair(j,-e.size));
+      }
+    }
+    wlinks.insert(std::make_pair(icol,diagval));
+    int nbl = wlinks.size();
+    ((int*)L->p)[icol+1]=((int*)L->p)[icol]+nbl;
+    if(icol!=(V-1)){
+      for(auto itl =wlinks.begin();itl!=wlinks.end();++itl){
+        //Rcout << icol << "--" << itl-> first << itl->second << std::endl;
+        if(itl->first!=(V-1)){
+          ((int*)L->i)[ichol]=itl->first;
+          ((double*)L->x)[ichol]=itl->second;
+        }else{
+          nbl--;
+        }
+        ichol++;
+      }
+      ((int*)L->nz)[icol]=nbl;
+    }else{
+      ((int*)L->i)[ichol]=icol;
+      ((double*)L->x)[ichol]=1;
+      ((int*)L->nz)[icol]=1;
+      ((int*)L->p)[icol+1]=((int*)L->p)[icol]+1;
+      ichol++;
+    }
+
+  }
+  //print_sparse(L);
+  return(L);
+}
+
 #endif
 
 
