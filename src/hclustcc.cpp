@@ -39,20 +39,18 @@ double cut_cost(bayesian_node * node_g,bayesian_node * node_h,std::vector<std::p
   return logdetdiff;
 }
 
-std::map<int, int> build_inter_links(bayesian_node * node,std::vector<bayesian_node> graph){
+std::map<int, int> build_inter_links(bayesian_node * node,std::vector<bayesian_node> graph,int * iperm){
   
   //Rcout << "Node : " << node->cl << std::endl;
   int diag_val=0;
   std::map<int, int> inter_links;
   for (auto itr = node->neibs.begin(); itr!=node->neibs.end();++itr){
-    int clto = graph[itr->first].cl;
+    int clto = iperm[graph[itr->first].cl];
     multiedge e = itr->second;
-    //Rcout << "(" << clto << " , " << e.size << "), ";
     inter_links.insert(std::make_pair(clto,-e.size));
     diag_val+=e.size;
   }
-  inter_links.insert(std::make_pair(node->cl,diag_val));
-  Rcout << std::endl;
+  inter_links.insert(std::make_pair(iperm[node->cl],diag_val));
   return(inter_links);
 }
 
@@ -419,12 +417,14 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     }
   }
   
-  Rcout << "chol inter" << std::endl;
   cholmod_sparse * L = inter_to_sparse(graph,V,nblinks,&c);
   cholmod_factor * Linter = cholmod_analyze(L, &c) ; /* analyze */
   cholmod_factorize(L, Linter, &c) ; 
   double logdetfull = cholmod_tools_logdet(Linter,&c);
-  int pivot = V-1;
+  //cholmod_change_factor (CHOLMOD_REAL, Linter->is_ll, FALSE, TRUE, TRUE, Linter, &c);
+  //print_factor(Linter);
+  int * Linter_iperm = cholmod_tools_iPerm(((int *)Linter->Perm),V);
+  int pivot = Linter_iperm[V-1];
   
   
   // Lets Merge !
@@ -457,7 +457,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     int g = std::get<0>(edge);
     int h = std::get<1>(edge);
     
-    Rcout << g << "--" << h << std::endl;
+
     
     bayesian_node node_g = graph[g];
     bayesian_node node_h = graph[h];
@@ -508,7 +508,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     new_node.col =  cholmod_tools_colup(new_node.L->n,node_h.col,cutset,permutation,&c);
     // store lognbtree
     new_node.lognbtree =  cholmod_tools_logdet(new_node.L,&c);
-    Rcout << "lognbtree :" << new_node.lognbtree << std::endl;
+    Rcout << "lognbtree - intra :" << new_node.lognbtree << std::endl;
     // free matrices in children
     cholmod_free_factor (&node_g.L, &c) ; 
     cholmod_free_factor (&node_h.L, &c) ; 
@@ -524,27 +524,33 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
       PriorIntra[imerge+1] = PriorIntra[imerge];
     }
     
-    // if(imerge ==0){
-    // 
-    //   Rcout << "Hinter" << std::endl;
-    //   cholmod_sparse * col_toremove;
-    //   if(node_h.cl==cl_newnode){
-    //     std::map<int, int> links_g = build_inter_links(&node_g,graph);
-    //     print_inter(links_g);
-    //     col_toremove= cholmod_tools_colinter(links_g,node_g.cl,V,pivot,&c);
-    //     cholmod_rowdel(node_g.cl,col_toremove,Linter,&c);
-    //   }else{
-    //     std::map<int, int> links_h = build_inter_links(&node_h,graph);
-    //     print_inter(links_h);
-    //     col_toremove= cholmod_tools_colinter(links_h,node_h.cl,V,pivot,&c);
-    //     cholmod_rowdel(node_h.cl,col_toremove,Linter,&c);
-    //   }
-    //   
-    //   cholmod_free_sparse(&col_toremove, &c);
-    //   
-    //   Rcout << cholmod_tools_logdet(Linter,&c) << std::endl;
-    // }
-
+     
+    Rcout << "lognbtree - inter :";
+    //Rcout << Linter_iperm[node_g.cl] << "--" << Linter_iperm[node_h.cl] << std::endl;
+    double lnbtreeinter = 0;
+    if(Linter_iperm[node_h.cl]!=pivot){
+      cholmod_rowdel(Linter_iperm[node_h.cl],NULL,Linter,&c);
+      if(Linter_iperm[node_g.cl]!=pivot){
+        std::map<int, int> links_h = build_inter_links(&node_h,graph,Linter_iperm);
+        cholmod_sparse * links_toadd_inter = cholmod_tools_ltoadd_inter(V, Linter_iperm[node_g.cl], Linter_iperm[node_h.cl], pivot,links_h,&c);
+        cholmod_updown(true,links_toadd_inter,Linter,&c);
+        cholmod_free_sparse(&links_toadd_inter, &c);
+        cholmod_sparse * links_todel_inter = cholmod_tools_ltodel_inter(V, Linter_iperm[node_g.cl], Linter_iperm[node_h.cl], pivot,links_h,&c);
+        cholmod_updown(false,links_todel_inter,Linter,&c);
+        cholmod_free_sparse(&links_todel_inter, &c);
+      }
+      
+      lnbtreeinter = cholmod_tools_logdet(Linter,&c);
+    }else{
+      // g is the new pivot
+      pivot = Linter_iperm[node_g.cl];
+      cholmod_rowdel(Linter_iperm[node_g.cl],NULL,Linter,&c);
+      lnbtreeinter = cholmod_tools_logdet(Linter,&c);
+    }
+    //cholmod_change_factor (CHOLMOD_REAL, Linter->is_ll, FALSE, TRUE, TRUE, Linter, &c);
+    //print_factor(Linter);
+    PriorInter[imerge+1] = lnbtreeinter;
+    Rcout << lnbtreeinter  << std::endl;
     
 
 
@@ -655,9 +661,6 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
 
     
     
-    if(imerge!=(V-2)){
-      PriorInter[imerge+1] = prior_inter(graph,active_nodes);
-    }
     // to check
     PriorK[imerge+1]=PriorK[imerge]-log(K_before-1)+log(V-K_before+1)+log(K_before);
     
@@ -689,8 +692,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
 
   cholmod_finish (&c) ; /* finish CHOLMOD */
   
-  Rcout << "HHHHHHHHHHHH" << std::endl;
-  Rcout << logdetfull << std::endl;
+  free(Linter_iperm);
   return res;
 }
 

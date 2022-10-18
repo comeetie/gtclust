@@ -331,27 +331,48 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
   
   nb_c = lapply(adjacencies_list,\(nei){nei-1})
   # run the algorithm
-  res=bayesian_hclustcc_cpp(nb_c,df_scaled,method)
+  if(method$method %in% c("ward","centroid","median","chisq")){
+    res=hclustcc_cpp(nb_c,df_scaled,method)
+    
+    # format the results in hclust form
+    hc_res = list(merge=res$merge,
+                  Ll = res$Ll,
+                  height=compute_height(-res$Ll),
+                  Queue_size=res$queue_size,
+                  order=order_tree(res$merge,nrow(res$merge)),
+                  labels=(rownames(df)),
+                  call=sys.call(),
+                  method=method$method,
+                  dist.method="euclidean",
+                  k.relaxed=res$k.relaxed,
+                  data=res$data,
+                  adjacencies_list=adjacencies_list,
+                  centers=res$centers)
+  }else{
+    res=bayesian_hclustcc_cpp(nb_c,df_scaled,method)
+    
+    ptree = (res$PriorInter+res$PriorIntra-res$PriorInter[1])
+    Llf = res$Ll + ptree +res$PriorK;
+    # format the results in hclust form
+    hc_res = list(merge=res$merge,
+                  Ll = -Llf,
+                  height=compute_height(-Llf),
+                  PriorIntra = res$PriorIntra,
+                  PriorInter = res$PriorInter,
+                  PriorK = res$PriorK,
+                  Queue_size=res$queue_size,
+                  order=order_tree(res$merge,nrow(res$merge)),
+                  labels=(rownames(df)),
+                  call=sys.call(),
+                  method=method$method,
+                  dist.method="euclidean",
+                  k.relaxed=res$k.relaxed,
+                  data=res$data,
+                  adjacencies_list=adjacencies_list,
+                  centers=res$centers)
+  }
+  
 
-  ptree = (res$PriorInter+res$PriorIntra-res$PriorInter[1])
-  Llf = res$Ll + ptree +res$PriorK;
-  # format the results in hclust form
-  hc_res = list(merge=res$merge,
-                Ll = -Llf,
-                height=compute_height(-Llf),
-                PriorIntra = res$PriorIntra,
-                PriorInter = res$PriorInter,
-                PriorK = res$PriorK,
-                Queue_size=res$queue_size,
-                order=order_tree(res$merge,nrow(res$merge)),
-                labels=(rownames(df)),
-                call=sys.call(),
-                method=method$method,
-                dist.method="euclidean",
-                k.relaxed=res$k.relaxed,
-                data=res$data,
-                adjacencies_list=adjacencies_list,
-                centers=res$centers)
   class(hc_res)  <- c("gtclust","hclust")
 
   hc_res

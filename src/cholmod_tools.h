@@ -6,6 +6,17 @@
 #include <Rcpp.h>
 using namespace Rcpp;
 
+
+int * cholmod_tools_iPerm(int arr[], int size) {
+  
+  // to store element to index mappings
+  int * iperm = (int*)malloc(sizeof(int) * size);
+  for (int i = 0; i < size; i++){
+    iperm[arr[i]] = i ;
+  }
+  return(iperm);
+}
+
 void print_factor(cholmod_factor * L){
   Rcout << "is ll :" << L->is_ll << std::endl;
   Rcout << "is monotonic :" << L->is_monotonic << std::endl;
@@ -58,7 +69,14 @@ double cholmod_tools_logdet(cholmod_factor * L, cholmod_common * com){
   for(int r=0;r<L->n;r++){
 
     int pd = ((int*)L->p)[r];
-    logdet+= log(((double*)L->x)[pd]);
+    double val = ((double*)L->x)[pd];
+    if(val>0){
+      logdet+= log(val); 
+    }else{
+      logdet+= log(abs(val)); 
+      Rcout << "Warning neg value in chol" << std::endl;
+      Rcout << r << " : " << val << std::endl;
+    }
   }
   return logdet;
 }
@@ -418,8 +436,9 @@ double cholmod_tools_Lup_logdet(cholmod_factor * F1,cholmod_factor * F2,cholmod_
     cholmod_free_sparse (&col1, com);
     
   }
-  
   double logdet = cholmod_tools_logdet(F,com);
+  
+  Rcout << logdet << std::endl;
   cholmod_free_factor(&F, com);
   return (logdet) ;
 }
@@ -548,6 +567,8 @@ cholmod_sparse* cholmod_tools_ltoadd_inter(int n, int g, int h, int pivot, std::
     ((int*)S->i)[r*2] = g;
     ((double*)S->x)[r*2] = sqrt(piv_val);
   }
+  
+  //print_sparse(S);
   return(S);
 }
 
@@ -581,6 +602,7 @@ cholmod_sparse* cholmod_tools_ltodel_inter(int n, int g, int h, int pivot, std::
     ((double*)S->x)[r] = sqrt(-itr->second);
     r++;
   }
+  //print_sparse(S);
   return(S);
 }
 
