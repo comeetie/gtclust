@@ -137,7 +137,7 @@ cholmod_factor * cholmod_tools_Lup_intra(cholmod_factor * F,int pivot, int old_p
 
   cholmod_sparse* links1 = cholmod_tools_linkstocol(F->n,pivot,old_pivot,cutset_loc,com);
 
-  cholmod_updown(1,links1,F,com);
+  cholmod_updown(true,links1,F,com);
   
   cholmod_free_sparse (&links1, com);
 
@@ -148,6 +148,32 @@ cholmod_factor * cholmod_tools_Lup_intra(cholmod_factor * F,int pivot, int old_p
   cholmod_free_sparse (&col1, com);
   
   return (F) ;
+}
+
+double cholmod_tools_cutcost(cholmod_factor * F,int pivot, int old_pivot,std::set<int> old_pivot_edges, std::vector<std::pair<int, int>> cutset,int * permutation, cholmod_common * com){
+  
+  std::vector<std::pair<int, int>> cutset_loc(cutset.size());
+  int i=0;
+  for (auto it=cutset.begin(); it !=cutset.end(); ++it){
+    cutset_loc[i] = std::make_pair(permutation[it->first],permutation[it->second]);
+    i++;
+  }
+  
+  cholmod_sparse* links1 = cholmod_tools_linkstocol(F->n,pivot,old_pivot,cutset_loc,com);
+  cholmod_updown(true,links1,F,com);
+  cholmod_sparse * col1 = cholmod_tools_oldpivotcol(F->n,pivot,old_pivot,old_pivot_edges,cutset_loc,com);
+  cholmod_rowadd(old_pivot,col1,F,com);
+  
+  // computelogdet
+  double lognbtree =  cholmod_tools_logdet_subset(Lintra,node_g_nodes)+cholmod_tools_logdet_subset(Lintra,node_h_nodes);
+  
+  // revert the changes
+  cholmod_rowdel(old_pivot,NULL,F,com);
+  cholmod_free_sparse (&col1, com);
+  cholmod_updown(false,links1,F,com);
+  cholmod_free_sparse (&links1, com);
+  
+  return (lognbtree) ;
 }
 
 

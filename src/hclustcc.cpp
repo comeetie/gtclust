@@ -19,26 +19,26 @@ double cut_cost(bayesian_node * node_g,bayesian_node * node_h,std::vector<std::p
   return logdetdiff;
 }
 
-double logdet_inter(cholmod_factor * Linter,std::vector<bayesian_node> graph,std::set<int> active_nodes,int * iperm){
+double logdet_inter(cholmod_factor * Linter,std::vector<bayesian_node> graph,std::set<int> active_nodes){
   std::list<int> active_nodes_loc(active_nodes.size());
   for(auto it=active_nodes.begin();it!=active_nodes.end();++it){
-    active_nodes_loc.insert(active_nodes_loc.begin(),iperm[graph[*it].i_inter]);
+    active_nodes_loc.insert(active_nodes_loc.begin(),graph[*it].i_inter);
   }
   return cholmod_tools_logdet_subset(Linter,active_nodes_loc);
 }
 
-std::map<int, int> build_inter_links(bayesian_node * node,std::vector<bayesian_node> graph,int * iperm){
+std::map<int, int> build_inter_links(bayesian_node * node,std::vector<bayesian_node> graph){
   
   //Rcout << "Node : " << node->cl << std::endl;
   int diag_val=0;
   std::map<int, int> inter_links;
   for (auto itr = node->neibs.begin(); itr!=node->neibs.end();++itr){
-    int clto = iperm[graph[itr->first].i_inter];
+    int clto = graph[itr->first].i_inter;
     multiedge e = itr->second;
     inter_links.insert(std::make_pair(clto,-e.size));
     diag_val+=e.size;
   }
-  inter_links.insert(std::make_pair(iperm[node->i_inter],diag_val));
+  inter_links.insert(std::make_pair(node->i_inter,diag_val));
   return(inter_links);
 }
 
@@ -376,8 +376,8 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     if(nb[i]!=R_NilValue) {
       NumericVector nbi = as<NumericVector>(nb[i]);
       bayesian_node cnode(method->init_node(i,X(i,_)));
-      cnode.i_inter = i;
       cnode.lognbtree = 0;
+      cnode.i_inter = i;
       Llc+=cnode.height;
       active_nodes.insert(i);
       for(int n=0; n<nbi.length(); ++n){
@@ -413,6 +413,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
   for(int r=0;r<V;r++){
     graph[r].intra_pivot = permutation[r];
     graph[r].intra_nodes.insert(graph[r].intra_nodes.begin(),permutation[r]);
+    graph[r].i_inter = permutation[r];
   }
   cholmod_factor* Lintra = cholmod_allocate_factor(V,&c);
   
@@ -593,23 +594,23 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     // compute Linter
 
     double lnbtreeinter = 0;
-    if(permutation[node_h.i_inter]!=inter_pivot){
-      cholmod_rowdel(permutation[node_h.i_inter],NULL,Linter,&c);
-      if(permutation[node_g.i_inter]!=inter_pivot){
-        std::map<int, int> links_h = build_inter_links(&node_h,graph,permutation);
-        cholmod_sparse * links_toadd_inter = cholmod_tools_ltoadd_inter(V, permutation[node_g.i_inter], permutation[node_h.i_inter], inter_pivot,links_h,&c);
+    if(node_h.i_inter!=inter_pivot){
+      cholmod_rowdel(node_h.i_inter,NULL,Linter,&c);
+      if(node_g.i_inter!=inter_pivot){
+        std::map<int, int> links_h = build_inter_links(&node_h,graph);
+        cholmod_sparse * links_toadd_inter = cholmod_tools_ltoadd_inter(V, node_g.i_inter, node_h.i_inter, inter_pivot,links_h,&c);
         cholmod_updown(true,links_toadd_inter,Linter,&c);
         cholmod_free_sparse(&links_toadd_inter, &c);
-        cholmod_sparse * links_todel_inter = cholmod_tools_ltodel_inter(V, permutation[node_g.i_inter], permutation[node_h.i_inter], inter_pivot,links_h,&c);
+        cholmod_sparse * links_todel_inter = cholmod_tools_ltodel_inter(V, node_g.i_inter,node_h.i_inter, inter_pivot,links_h,&c);
         cholmod_updown(false,links_todel_inter,Linter,&c);
         cholmod_free_sparse(&links_todel_inter, &c);
       }
-      lnbtreeinter = logdet_inter(Linter,graph,active_nodes,permutation);
+      lnbtreeinter = logdet_inter(Linter,graph,active_nodes);
     }else{
       // g is the new pivot
-      inter_pivot = permutation[node_g.i_inter];
-      cholmod_rowdel(permutation[node_g.i_inter],NULL,Linter,&c);
-      lnbtreeinter = logdet_inter(Linter,graph,active_nodes,permutation);
+      inter_pivot = node_g.i_inter;
+      cholmod_rowdel(node_g.i_inter,NULL,Linter,&c);
+      lnbtreeinter = logdet_inter(Linter,graph,active_nodes);
     }
     
     PriorInter[imerge+1] = lnbtreeinter;
