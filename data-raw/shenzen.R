@@ -49,7 +49,7 @@ ggplot(links.sf)+geom_sf(aes(color=speed*3.6),size=1.1)+
   ggtitle("Shenzen speed distribution","8h30-8h45")
 
 
-hc_res=gtclust_lines(links.sf |> select(speed)|>mutate(speed=log(speed)),gtmethod_bayes_dgmm())
+hc_res=gtclust_lines(links.sf |> select(speed),gtmethod_bayes_dgmm())
 
 gt_res= geocutree(hc_res,9) |> mutate(L=st_length(geometry)) |> arrange(desc(L)) |> head(9)
   
@@ -82,7 +82,7 @@ pr$ptot=pr$inter+pr$intra-pr$intra[1]#-pr$Cnk-lgamma(1:k_max+1)
 pr$Ll=hc_res$Ll[N:(N-k_max+1)]
 pr$intra_comp=hc_res$PriorIntra[N:(N-k_max+1)]
 pr$inter_comp=hc_res$PriorInter[N:(N-k_max+1)]
-pr
+pr |> select(intra,intra_comp,inter,inter_comp)
 
 
 library(gtclust)
@@ -93,9 +93,8 @@ X=matrix(runif(7*2),nrow=7)
 hc_res_small = gtclust_graph(nb,data.frame(X),method = gtmethod_bayes_dgmm(),scaling = "raw")
 
 
-
-
 k_max= 7
+
 N=nrow(X)
 pr=sptree_prior(hc_res_small,k_max)
 pr$Cnk=lgamma(N)-lgamma(1:k_max)-lgamma(N-2:(k_max+1))

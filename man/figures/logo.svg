@@ -64,9 +64,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="3.959798"
-     inkscape:cx="127.5641"
-     inkscape:cy="117.50601"
+     inkscape:zoom="0.98994949"
+     inkscape:cx="170.56025"
+     inkscape:cy="92.790542"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -32518,32 +32518,28 @@
          style="opacity:1;fill:none;fill-opacity:1;stroke:#403c3e;stroke-width:0.86417907;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:10.09133816;stroke-opacity:1"
          sodipodi:type="star" />
     </g>
-    <g
-       id="g113091"
-       transform="translate(-45.970359,-8.8198944)">
-      <text
-         transform="matrix(1.0181898,0,0,1.0445834,-26.00025,-99.054272)"
-         id="text1065-8-8"
-         y="465.56073"
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:8.55175591px;line-height:1.25;font-family:'Saira Expanded';-inkscape-font-specification:'Saira Expanded, ';letter-spacing:0px;word-spacing:0px;fill:#2a0000;fill-opacity:1;stroke:none;stroke-width:0.25655267;filter:url(#filter77814-9);"
+       x="338.5134"
+       y="465.56073"
+       id="text1065-8-8"
+       transform="matrix(1.0181898,0,0,1.0445834,-71.970609,-107.87417)"><tspan
+         sodipodi:role="line"
+         id="tspan1063-7-8"
          x="338.5134"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:8.55175591px;line-height:1.25;font-family:'Saira Expanded';-inkscape-font-specification:'Saira Expanded, ';letter-spacing:0px;word-spacing:0px;fill:#505050;fill-opacity:1;stroke:none;stroke-width:0.25655267;filter:url(#filter77814-9)"
-         xml:space="preserve"><tspan
-           style="font-style:italic;font-variant:normal;font-weight:800;font-stretch:expanded;font-size:8.55175591px;font-family:'Saira Expanded';-inkscape-font-specification:'Saira Expanded, Ultra-Bold Italic Expanded';fill:#505050;fill-opacity:1;stroke-width:0.25655267"
-           y="465.56073"
-           x="338.5134"
-           id="tspan1063-7-8"
-           sodipodi:role="line">GT clust</tspan></text>
-      <text
-         id="text1065-5"
-         y="387.14645"
-         x="318.95242"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:8.81944466px;line-height:1.25;font-family:'Saira Expanded';-inkscape-font-specification:'Saira Expanded, ';letter-spacing:0px;word-spacing:0px;fill:#030303;fill-opacity:1;stroke:none;stroke-width:0.26458332"
-         xml:space="preserve"><tspan
-           style="font-style:italic;font-variant:normal;font-weight:800;font-stretch:expanded;font-size:8.81944466px;font-family:'Saira Expanded';-inkscape-font-specification:'Saira Expanded, Ultra-Bold Italic Expanded';fill:#030303;fill-opacity:1;stroke-width:0.26458332"
-           y="387.14645"
-           x="318.95242"
-           id="tspan1063-8"
-           sodipodi:role="line">GT clust</tspan></text>
-    </g>
+         y="465.56073"
+         style="font-style:italic;font-variant:normal;font-weight:800;font-stretch:expanded;font-size:8.55175591px;font-family:'Saira Expanded';-inkscape-font-specification:'Saira Expanded, Ultra-Bold Italic Expanded';fill:#2a0000;fill-opacity:1;stroke-width:0.25655267;">GT clust</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:8.81944466px;line-height:1.25;font-family:'Saira Expanded';-inkscape-font-specification:'Saira Expanded, ';letter-spacing:0px;word-spacing:0px;fill:#d50000;fill-opacity:1;stroke:none;stroke-width:0.26458332;"
+       x="272.98206"
+       y="378.32657"
+       id="text1065-5"><tspan
+         sodipodi:role="line"
+         id="tspan1063-8"
+         x="272.98206"
+         y="378.32657"
+         style="font-style:italic;font-variant:normal;font-weight:800;font-stretch:expanded;font-size:8.81944466px;font-family:'Saira Expanded';-inkscape-font-specification:'Saira Expanded, Ultra-Bold Italic Expanded';fill:#d50000;fill-opacity:1;stroke-width:0.26458332;">GT clust</tspan></text>
   </g>
 </svg>

@@ -52,11 +52,10 @@ struct multiedge
 struct bayesian_node : abstract_node
 {
   std::map<int,multiedge,std::greater<double>> neibs;
-  std::vector<std::pair<int, int>> intra_edges;
-  std::vector<int> intra_nodes;
-  cholmod_factor * L;
-  cholmod_sparse * col;
-  int cl;
+  std::list<int> intra_nodes;
+  std::set<int> intra_pivot_edges;
+  int intra_pivot;
+  int i_inter;
   double lognbtree;
   bayesian_node(){
   }
