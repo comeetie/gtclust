@@ -108,9 +108,21 @@ library(dplyr)
 library(sf)
 data("modesshare.idf")
 
+
+
 X=modesshare.idf |> 
   group_by(CODE_IRIS,NOM_COM)|>
   transmute(across(nodep:tcom,\(v){log((v+1)/(voiture+1))})) |>
   select(-voiture)
 
-hc_res=gtclust_poly(X,gtmethod_bayes_dgmm())
+hc_res_idf=gtclust_poly(X,gtmethod_bayes_dgmm())
+
+k_max= 15
+N=nrow(X)
+pr=sptree_prior(hc_res_idf,k_max)
+pr$Cnk=lgamma(N)-lgamma(1:k_max)-lgamma(N-2:(k_max+1))
+pr$ptot=pr$inter+pr$intra-pr$intra[1]#-pr$Cnk-lgamma(1:k_max+1)
+pr$Ll=hc_res_small$Ll[N:(N-k_max+1)]
+pr$intra_comp=hc_res_idf$PriorIntra[N:(N-k_max+1)]
+pr$inter_comp=hc_res_idf$PriorInter[N:(N-k_max+1)]
+pr |> select(inter,inter_comp,intra,intra_comp)

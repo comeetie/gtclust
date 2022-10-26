@@ -3,8 +3,8 @@
 
 #include "SuiteSparse_config/SuiteSparse_config.h"
 #include "CHOLMOD/Include/cholmod.h"
-// #include <Rcpp.h>
-// using namespace Rcpp;
+#include <Rcpp.h>
+using namespace Rcpp;
 
 
 int * cholmod_tools_iPerm(int arr[], int size) {
@@ -53,6 +53,8 @@ double cholmod_tools_logdet_subset(cholmod_factor * L,const Container<T, Allocat
     double val = ((double*)L->x)[pd];
     if(val>0){
       logdet+= log(val); 
+    }else{
+      Rcout << "warning:" << r << " : " << val << std::endl;
     }
   }
   return logdet;
@@ -78,12 +80,12 @@ cholmod_sparse* cholmod_tools_linkstocol(int size,int pivot,int old_pivot,const 
     }
     ((int*)S->p)[r+1] =((int*)S->p)[r]+2;
     int nz=0;
-    if(u!=pivot & u!=old_pivot){
+    if(u!=pivot && u!=old_pivot){
       ((int*)S->i)[r*2] = u;
       ((double*)S->x)[r*2] = 1;
       nz++;
     }
-    if(v!=pivot & v!=old_pivot){
+    if(v!=pivot && v!=old_pivot){
       ((int*)S->i)[r*2+nz] = v;
       ((double*)S->x)[r*2+nz] = -1;
       nz++;
@@ -153,12 +155,15 @@ cholmod_factor * cholmod_tools_Lup_intra(cholmod_factor * F,int pivot, int old_p
 
   cholmod_updown(true,links1,F,com);
   
+
+  
   cholmod_free_sparse (&links1, com);
 
   cholmod_sparse * col1 = cholmod_tools_oldpivotcol(F->n,pivot,old_pivot,old_pivot_edges,&cutset_loc,com);
 
   cholmod_rowadd(old_pivot,col1,F,com);
   
+
   cholmod_free_sparse (&col1, com);
   
   return (F) ;
@@ -209,54 +214,22 @@ std::set<int> cholmod_tools_pivotedgesup_intra(int size,int pivot,std::set<int> 
 
 
 
-cholmod_sparse* cholmod_tools_colinter(std::map<int, int> inter,int i, int n, int pivot,cholmod_common* com){
-  auto search = inter.find(pivot);
-  int nbval = inter.size();
-  if(search!=inter.end()){
-    inter.erase(search);
-    nbval--;
-  }
-  cholmod_sparse * col = cholmod_allocate_sparse(n,1,nbval,true,true,0,CHOLMOD_REAL, com);
-  int vp = 0;
-  for (auto itr = inter.begin(); itr!=inter.end();++itr){
-    ((int *)col->i)[vp]=itr->first;
-    ((double *)col->x)[vp]=itr->second;
-    vp++;
-  }
-  ((int *)col->p)[0]=0;
-  ((int *)col->p)[1]=nbval;
-  return col;
-}
 
 
-
-
-cholmod_sparse* cholmod_tools_ltoadd_inter(int n, int g, int h, int pivot,std::map<int, int> inter_h,cholmod_common* com ) {
-  
-  auto search = inter_h.find(g);
-  //remove g-h from h 
-  if(search!=inter_h.end()){
-    inter_h.erase(search);
-  }
-  //remove diagonals
-  search = inter_h.find(h);
-  if(search!=inter_h.end()){
-    inter_h.erase(search);
-  }
+cholmod_sparse* cholmod_tools_edges_inter(int n, int h, int pivot,std::map<int, int> inter_h,cholmod_common* com ) {
   // links with the pivot ?
-  search = inter_h.find(pivot);
+  auto search = inter_h.find(pivot);
   double piv_val = 0;
   int link_piv = 0;
   if(search!=inter_h.end()){
     link_piv = 1;
-    piv_val = - search->second;
+    piv_val = search->second;
     inter_h.erase(search);
   }
   
   int nb_links = inter_h.size();
   
   cholmod_sparse *S;
-  
   S = cholmod_allocate_sparse(n,nb_links+link_piv,2*nb_links+link_piv,true,true,0,CHOLMOD_REAL, com);
   int r = 0;
   int u,v;
@@ -264,22 +237,22 @@ cholmod_sparse* cholmod_tools_ltoadd_inter(int n, int g, int h, int pivot,std::m
   // ! handle case were h or h is the pivot not done
   for (auto itr = inter_h.begin(); itr!=inter_h.end();++itr){
     ((int*)S->p)[r+1] =((int*)S->p)[r]+2;
-    if(itr->first>g){
-      u=g;
+    if(itr->first>h){
+      u=h;
       v=itr->first;
     }else{
       u=itr->first;
-      v=g;
+      v=h;
     }
     ((int*)S->i)[r*2] = u;
-    ((double*)S->x)[r*2] = -sqrt(-itr->second);
+    ((double*)S->x)[r*2] = -sqrt(itr->second);
     ((int*)S->i)[r*2+1] = v;
-    ((double*)S->x)[r*2+1] = sqrt(-itr->second);
+    ((double*)S->x)[r*2+1] = sqrt(itr->second);
     r++;
   }
   if(link_piv==1){
     ((int*)S->p)[r+1] =((int*)S->p)[r]+1;
-    ((int*)S->i)[r*2] = g;
+    ((int*)S->i)[r*2] = h;
     ((double*)S->x)[r*2] = sqrt(piv_val);
   }
   
@@ -288,36 +261,19 @@ cholmod_sparse* cholmod_tools_ltoadd_inter(int n, int g, int h, int pivot,std::m
 }
 
 
-
-cholmod_sparse* cholmod_tools_ltodel_inter(int n, int g, int h, int pivot,std::map<int, int> inter_h,cholmod_common* com ) {
-  
-  //remove diagonals
-  auto search = inter_h.find(h);
-  if(search!=inter_h.end()){
-    inter_h.erase(search);
-  }
-  
-  // links with pivot ?
-  search = inter_h.find(pivot);
-  if(search!=inter_h.end()){
-    inter_h.erase(search);
-  }
-  
-  
-  
+cholmod_sparse* cholmod_tools_edges_diag_inter(int n,std::map<int, int> inter_h,cholmod_common* com ) {
   int nb_links = inter_h.size();
   cholmod_sparse *S;
-  
   S = cholmod_allocate_sparse(n,nb_links,nb_links,true,true,0,CHOLMOD_REAL, com);
   int r = 0;
+  int u,v;
   ((int*)S->p)[0] = 0;
   for (auto itr = inter_h.begin(); itr!=inter_h.end();++itr){
     ((int*)S->p)[r+1] =((int*)S->p)[r]+1;
     ((int*)S->i)[r] = itr->first;
-    ((double*)S->x)[r] = sqrt(-itr->second);
+    ((double*)S->x)[r] = sqrt(itr->second);
     r++;
   }
-  //print_sparse(S);
   return(S);
 }
 
@@ -391,26 +347,26 @@ cholmod_sparse * inter_to_sparse(std::vector<bayesian_node> graph,int V,int nbli
 // }
 // 
 // 
-// void print_sparse(cholmod_sparse * S){
-//   Rcout << "is packed :" << S->packed << std::endl;
-//   Rcout << "IX: " ;
-//   for(int v=0;v<S->nzmax;v++){
-//     Rcout << "(" << ((int*)S->i)[v] << ", " << ((double*)S->x)[v] << ")";
-//   }
-//   Rcout << std::endl;
-//   Rcout << "P: ";
-//   for(int v=0;v<(S->ncol+1);v++){
-//     Rcout << ((int*)S->p)[v] << ", ";
-//   }
-//   Rcout << std::endl;
-//   if(!S->packed){
-//     Rcout << "NZ: ";
-//     for(int v=0;v<(S->ncol);v++){
-//       Rcout << ((int*)S->nz)[v] << ", ";
-//     }
-//     Rcout << std::endl;
-//   }
-// }
+void print_sparse(cholmod_sparse * S){
+  Rcout << "is packed :" << S->packed << std::endl;
+  Rcout << "IX: " ;
+  for(int v=0;v<S->nzmax;v++){
+    Rcout << "(" << ((int*)S->i)[v] << ", " << ((double*)S->x)[v] << ")";
+  }
+  Rcout << std::endl;
+  Rcout << "P: ";
+  for(int v=0;v<(S->ncol+1);v++){
+    Rcout << ((int*)S->p)[v] << ", ";
+  }
+  Rcout << std::endl;
+  if(!S->packed){
+    Rcout << "NZ: ";
+    for(int v=0;v<(S->ncol);v++){
+      Rcout << ((int*)S->nz)[v] << ", ";
+    }
+    Rcout << std::endl;
+  }
+}
 
 
 #endif

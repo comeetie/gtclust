@@ -56,6 +56,7 @@ struct bayesian_node : abstract_node
   std::set<int> intra_pivot_edges;
   int intra_pivot;
   int i_inter;
+  std::map<int, int> inter_edges;
   double lognbtree;
   bayesian_node(){
   }
