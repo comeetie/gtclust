@@ -104,3 +104,13 @@ pr$intra_comp=hc_res_small$PriorIntra[N:(N-k_max+1)]
 pr$inter_comp=hc_res_small$PriorInter[N:(N-k_max+1)]
 pr |> select(inter,inter_comp,intra,intra_comp)
 
+library(dplyr)
+library(sf)
+data("modesshare.idf")
+
+X=modesshare.idf |> 
+  group_by(CODE_IRIS,NOM_COM)|>
+  transmute(across(nodep:tcom,\(v){log((v+1)/(voiture+1))})) |>
+  select(-voiture)
+
+hc_res=gtclust_poly(X,gtmethod_bayes_dgmm())

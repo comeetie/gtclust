@@ -164,30 +164,29 @@ cholmod_factor * cholmod_tools_Lup_intra(cholmod_factor * F,int pivot, int old_p
   return (F) ;
 }
 
-double cholmod_tools_cutcost(cholmod_factor * F,const bayesian_node * node_g,const bayesian_node * node_h,std::set<int> old_pivot_edges,const std::vector<std::pair<int, int>> * cutset,int * permutation, cholmod_common * com){
+double cholmod_tools_cutcost(cholmod_factor * F,int pivot,int old_pivot,std::set<int> old_pivot_edges,const std::vector<std::pair<int, int>> * cutset,int * permutation,const std::list<int> * node_g_intra_nodes,const std::list<int> * node_h_intra_nodes, cholmod_common * com){
   
-  int pivot = node_g->intra_pivot; 
-  int old_pivot=node_h->intra_pivot;
+
   std::vector<std::pair<int, int>> cutset_loc(cutset->size());
   int i=0;
   for (auto it=cutset->begin(); it !=cutset->end(); ++it){
     cutset_loc[i] = std::make_pair(permutation[it->first],permutation[it->second]);
     i++;
   }
-  double lognbtree=0;
-  // cholmod_sparse* links1 = cholmod_tools_linkstocol(F->n,pivot,old_pivot,&cutset_loc,com);
-  // cholmod_updown(true,links1,F,com);
-  // cholmod_sparse * col1 = cholmod_tools_oldpivotcol(F->n,pivot,old_pivot,old_pivot_edges,&cutset_loc,com);
-  // cholmod_rowadd(old_pivot,col1,F,com);
-  // 
+  //double lognbtree=0;
+  cholmod_sparse* links1 = cholmod_tools_linkstocol(F->n,pivot,old_pivot,&cutset_loc,com);
+  cholmod_updown(true,links1,F,com);
+  cholmod_sparse * col1 = cholmod_tools_oldpivotcol(F->n,pivot,old_pivot,old_pivot_edges,&cutset_loc,com);
+  cholmod_rowadd(old_pivot,col1,F,com);
+  //
   // // computelogdet
-  // double lognbtree =  cholmod_tools_logdet_subset(F,node_g->intra_nodes)+cholmod_tools_logdet_subset(F,node_h->intra_nodes);
-  // 
-  // // revert the changes
-  // cholmod_rowdel(old_pivot,NULL,F,com);
-  // cholmod_free_sparse (&col1, com);
-  // cholmod_updown(false,links1,F,com);
-  // cholmod_free_sparse (&links1, com);
+  double lognbtree =  cholmod_tools_logdet_subset(F,*node_g_intra_nodes)+cholmod_tools_logdet_subset(F,*node_h_intra_nodes);
+  //
+  // revert the changes
+  cholmod_rowdel(old_pivot,NULL,F,com);
+  cholmod_free_sparse (&col1, com);
+  cholmod_updown(false,links1,F,com);
+  cholmod_free_sparse (&links1, com);
   
   return (lognbtree) ;
 }
@@ -232,7 +231,7 @@ cholmod_sparse* cholmod_tools_colinter(std::map<int, int> inter,int i, int n, in
 
 
 
-cholmod_sparse* cholmod_tools_ltoadd_inter(int n, int g, int h, int pivot, std::map<int, int> inter_h,cholmod_common* com ) {
+cholmod_sparse* cholmod_tools_ltoadd_inter(int n, int g, int h, int pivot,std::map<int, int> inter_h,cholmod_common* com ) {
   
   auto search = inter_h.find(g);
   //remove g-h from h 
@@ -290,7 +289,7 @@ cholmod_sparse* cholmod_tools_ltoadd_inter(int n, int g, int h, int pivot, std::
 
 
 
-cholmod_sparse* cholmod_tools_ltodel_inter(int n, int g, int h, int pivot, std::map<int, int> inter_h,cholmod_common* com ) {
+cholmod_sparse* cholmod_tools_ltodel_inter(int n, int g, int h, int pivot,std::map<int, int> inter_h,cholmod_common* com ) {
   
   //remove diagonals
   auto search = inter_h.find(h);

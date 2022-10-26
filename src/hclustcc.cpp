@@ -8,12 +8,19 @@ using namespace Rcpp;
 
 
 
-double cut_cost(cholmod_factor * Lintra,bayesian_node * node_g,bayesian_node * node_h,std::set<int> old_pivot_edges,const std::vector<std::pair<int, int>> * cutset,int * permutation,cholmod_common * com)
+double cut_cost(cholmod_factor * Lintra,bayesian_node * node_g,bayesian_node * node_h,int * permutation,cholmod_common * com)
 {
+  
+  std::vector<std::pair<int, int>> cutset = node_g->neibs.at(node_h->id).edges;
   double logdetdiff = 0;
-  if(cutset->size()>1){
-    double logdet = cholmod_tools_cutcost(Lintra,node_g,node_h,old_pivot_edges,cutset,permutation,com);
-    logdetdiff = logdet-node_g->lognbtree-node_h->lognbtree-log(cutset->size());
+  if(cutset.size()>1){
+    int pivot = node_g->intra_pivot; 
+    int old_pivot=node_h->intra_pivot;
+    std::set<int> old_pivot_edges = node_h->intra_pivot_edges;
+    double logdet = cholmod_tools_cutcost(Lintra,pivot,old_pivot,old_pivot_edges,&cutset,permutation,&node_g->intra_nodes,&node_h->intra_nodes,com);
+    logdetdiff = logdet-node_g->lognbtree-node_h->lognbtree-log(cutset.size());
+    //Rcout << "logdet :: " << logdet << std::endl;
+    //Rcout << "logdetdiff :: " << logdetdiff << std::endl;
   }
   
   return logdetdiff;
@@ -466,7 +473,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     
     // get the cutset g,h
     std::vector<std::pair<int, int>> cutset = node_g.neibs.at(h).edges;
-    
+
     // build cholevky factorization of new node
     cholmod_tools_Lup_intra(Lintra,node_g.intra_pivot,node_h.intra_pivot,node_h.intra_pivot_edges,&cutset,permutation,&c);
     // update remaining pivot edges
@@ -474,6 +481,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     new_node.intra_pivot_edges =  cholmod_tools_pivotedgesup_intra(V,node_g.intra_pivot,node_g.intra_pivot_edges,&cutset,permutation);
     // store lognbtree
     new_node.lognbtree =  cholmod_tools_logdet_subset(Lintra,new_node.intra_nodes);
+
     Rcout << "lognbtree - intra :" << new_node.lognbtree << std::endl;
     PriorIntra[imerge+1] = PriorIntra[imerge];
     PriorIntra[imerge+1]+= new_node.lognbtree-node_g.lognbtree-node_h.lognbtree;
@@ -582,11 +590,12 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     if(node_h.i_inter!=inter_pivot){
       cholmod_rowdel(node_h.i_inter,NULL,Linter,&c);
       if(node_g.i_inter!=inter_pivot){
-        std::map<int, int> links_h = build_inter_links(&node_h,&graph);
-        cholmod_sparse * links_toadd_inter = cholmod_tools_ltoadd_inter(V, node_g.i_inter, node_h.i_inter, inter_pivot,links_h,&c);
+        std::map<int, int> links_ha = build_inter_links(&node_h,&graph);
+        cholmod_sparse * links_toadd_inter = cholmod_tools_ltoadd_inter(V, node_g.i_inter, node_h.i_inter, inter_pivot,links_ha,&c);
         cholmod_updown(true,links_toadd_inter,Linter,&c);
         cholmod_free_sparse(&links_toadd_inter, &c);
-        cholmod_sparse * links_todel_inter = cholmod_tools_ltodel_inter(V, node_g.i_inter,node_h.i_inter, inter_pivot,links_h,&c);
+        std::map<int, int> links_hd = build_inter_links(&node_h,&graph);
+        cholmod_sparse * links_todel_inter = cholmod_tools_ltodel_inter(V, node_g.i_inter,node_h.i_inter, inter_pivot,links_hd,&c);
         cholmod_updown(false,links_todel_inter,Linter,&c);
         cholmod_free_sparse(&links_todel_inter, &c);
       }
@@ -613,7 +622,8 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
       
       // update the merge cost to incorporate the prior
       // std::set<int> old_pivot_edges,const std::vector<std::pair<int, int>> * cutset,
-      double cc = cut_cost(Lintra,&new_node,&(graph[j]),new_node.intra_pivot_edges,&new_node.neibs.at(j).edges,permutation,&c);
+      double cc = cut_cost(Lintra,&new_node,&(graph[j]),permutation,&c);
+      
       double nd = d-cc;
       graph[node_id].neibs.at(j).height=nd;
       graph[j].neibs.at(node_id).height=nd;
