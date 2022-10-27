@@ -351,6 +351,13 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
   }else{
     res=bayesian_hclustcc_cpp(nb_c,df_scaled,method)
     
+    # complete inter prior with linear slope if needed
+    miss_prior = c(res$PriorInter[-length(res$PriorInter)]==0,FALSE)
+    if(sum(miss_prior)>0){
+      nbmiss = max(which(miss_prior))
+      res$PriorInter[miss_prior]=seq(res$PriorIntra[length(res$PriorIntra)],res$PriorInter[nbmiss+1],length.out=nbmiss)
+    }
+    # compute the spanning tree prior term
     ptree = (res$PriorInter+res$PriorIntra-res$PriorInter[1])
     Llf = res$Ll + ptree +res$PriorK;
     # format the results in hclust form

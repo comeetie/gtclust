@@ -31,18 +31,7 @@ double cholmod_tools_logdet(cholmod_factor * L){
 }
 
 
-double cholmod_tools_logdet_intra(cholmod_factor * L,const std::set<int> * subset){
-  double logdet = 0;
-  for(auto it=subset->begin();it!=subset->end();++it){
-    int r = *it;
-    int pd = ((int*)L->p)[r];
-    double val = ((double*)L->x)[pd];
-    if(val>0){
-      logdet+= log(val); 
-    }
-  }
-  return logdet;
-}
+
 
 template<template<typename, typename> typename Container, typename T, typename Allocator>
 double cholmod_tools_logdet_subset(cholmod_factor * L,const Container<T, Allocator>& subset){
@@ -261,7 +250,7 @@ cholmod_sparse* cholmod_tools_edges_inter(int n, int h, int pivot,std::map<int, 
 }
 
 
-cholmod_sparse* cholmod_tools_edges_diag_inter(int n,std::map<int, int> inter_h,cholmod_common* com ) {
+cholmod_sparse* cholmod_tools_edges_diag_inter(int n,const std::map<int, int> & inter_h,cholmod_common* com ) {
   int nb_links = inter_h.size();
   cholmod_sparse *S;
   S = cholmod_allocate_sparse(n,nb_links,nb_links,true,true,0,CHOLMOD_REAL, com);
@@ -347,26 +336,26 @@ cholmod_sparse * inter_to_sparse(std::vector<bayesian_node> graph,int V,int nbli
 // }
 // 
 // 
-void print_sparse(cholmod_sparse * S){
-  Rcout << "is packed :" << S->packed << std::endl;
-  Rcout << "IX: " ;
-  for(int v=0;v<S->nzmax;v++){
-    Rcout << "(" << ((int*)S->i)[v] << ", " << ((double*)S->x)[v] << ")";
-  }
-  Rcout << std::endl;
-  Rcout << "P: ";
-  for(int v=0;v<(S->ncol+1);v++){
-    Rcout << ((int*)S->p)[v] << ", ";
-  }
-  Rcout << std::endl;
-  if(!S->packed){
-    Rcout << "NZ: ";
-    for(int v=0;v<(S->ncol);v++){
-      Rcout << ((int*)S->nz)[v] << ", ";
-    }
-    Rcout << std::endl;
-  }
-}
+// void print_sparse(cholmod_sparse * S){
+//   Rcout << "is packed :" << S->packed << std::endl;
+//   Rcout << "IX: " ;
+//   for(int v=0;v<S->nzmax;v++){
+//     Rcout << "(" << ((int*)S->i)[v] << ", " << ((double*)S->x)[v] << ")";
+//   }
+//   Rcout << std::endl;
+//   Rcout << "P: ";
+//   for(int v=0;v<(S->ncol+1);v++){
+//     Rcout << ((int*)S->p)[v] << ", ";
+//   }
+//   Rcout << std::endl;
+//   if(!S->packed){
+//     Rcout << "NZ: ";
+//     for(int v=0;v<(S->ncol);v++){
+//       Rcout << ((int*)S->nz)[v] << ", ";
+//     }
+//     Rcout << std::endl;
+//   }
+// }
 
 
 #endif

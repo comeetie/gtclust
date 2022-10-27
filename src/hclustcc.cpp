@@ -451,8 +451,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     
     bayesian_node node_g = graph[g];
     bayesian_node node_h = graph[h];
-    Rcout << node_g.id << "--" << node_h.id << std::endl;
-    Rcout << node_g.i_inter << "--" << node_h.i_inter << std::endl;    
+    // Rcout << node_g.id << "--" << node_h.id << std::endl;
     
     // strore merge move in pseudo hclust format
 
@@ -461,7 +460,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
 
 
     // update actives_nodes
-    active_nodes.erase(active_nodes.find(node_h.i_inter));
+    // active_nodes.erase(active_nodes.find(node_h.i_inter));
 
     // create a new node
     bayesian_node new_node(method->merge(node_id,&node_g,&node_h,height[imerge]));
@@ -482,7 +481,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     // store lognbtree
     new_node.lognbtree =  cholmod_tools_logdet_subset(Lintra,new_node.intra_nodes);
 
-    Rcout << "lognbtree - intra :" << new_node.lognbtree << std::endl;
+    // Rcout << "lognbtree - intra :" << new_node.lognbtree << std::endl;
     PriorIntra[imerge+1] = PriorIntra[imerge];
     PriorIntra[imerge+1]+= new_node.lognbtree-node_g.lognbtree-node_h.lognbtree;
     
@@ -578,9 +577,8 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     
     // update i_inter and inter links
     new_node.i_inter = node_g.i_inter;
-    new_node.inter_edges = build_inter_links(&new_node,&graph);
+    // we need to store the inter links at death time
     graph[h].inter_edges = build_inter_links(&node_h,&graph);
-    graph[g].inter_edges = build_inter_links(&node_g,&graph);
     // add the newly created node
     graph[node_id]=new_node;
   
@@ -609,46 +607,39 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     
     
     
-    // to check
+    
     PriorK[imerge+1]=PriorK[imerge]-log(K_before-1)+log(V-K_before+1)+log(K_before);
     
     
     
   }
   // intialize first value of prior inter // last value of prior intra // log nb of spanning tree
-  // PriorInter[0]=PriorIntra[V-1];
   cholmod_factor* Linter = cholmod_allocate_factor(V,&c);
   int inter_pivot = graph[2*V-2].i_inter;
-  //Rcout << "Pivot" << inter_pivot << std::endl;
-  for(int imerge=(V-2);imerge>=0;imerge--){
-    //Rcout << V+imerge << " : " << merge(imerge,0) <<  "--" << merge(imerge,1) << std::endl;
-    Timer t;
+
+  std::list<int> inter_active_nodes;
+  inter_active_nodes.insert(inter_active_nodes.begin(),inter_pivot);
+  for(int imerge=(V-2);imerge>=std::max(0,V-1000);imerge--){
+    //Timer t;
     int id_c = V+imerge;
     int g = merge(imerge,0);
     int h = merge(imerge,1);
-    //Rcout << "i cnode :" << graph[id_c].i_inter << std::endl;
-    // std::map<int,int> cedges = graph[merge(imerge,1)].inter_edges;
-    //Rcout << "----- G (" << graph[g].i_inter << ")EDGES ----" << std::endl;
-    //Rcout << "----- H (" << graph[h].i_inter << ")EDGES ----" << std::endl;
-    // for(auto it=cedges.begin();it!=cedges.end();++it){
-    //   Rcout << it->first << ":"<< it->second<< std::endl;
-    // }
+    inter_active_nodes.insert(inter_active_nodes.begin(),graph[h].i_inter);
+    
     cholmod_sparse * ladd = cholmod_tools_edges_inter(V, graph[h].i_inter, inter_pivot,graph[h].inter_edges,&c);
     cholmod_updown(true,ladd,Linter,&c);
-    //print_sparse(ladd);
     cholmod_free_sparse (&ladd,&c);
 
     
-    // i need to remove 1 from the diag on graph[h].i_inter since Linter is eye at start
+    // need to remove 1 from the diag on graph[h].i_inter since Linter is eye at start
     std::map<int,int> ediag;
     ediag.insert(std::make_pair(graph[h].i_inter,1));
     cholmod_sparse * ldiag = cholmod_tools_edges_inter(V, graph[h].i_inter, graph[h].i_inter,ediag,&c);
     cholmod_updown(false,ldiag,Linter,&c);
-    //print_sparse(ldiag);
     cholmod_free_sparse (&ldiag,&c);
     
     
-    // i remove the intra link for the del step
+    // remove intra (g-h) link for the del step
     auto search = graph[h].inter_edges.find(graph[g].i_inter);
     if(search!=graph[h].inter_edges.end()){
       graph[h].inter_edges.erase(search);
@@ -656,19 +647,17 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     if(graph[g].i_inter!=inter_pivot){
       cholmod_sparse * ldel = cholmod_tools_edges_inter(V, graph[g].i_inter, inter_pivot,graph[h].inter_edges,&c);
       cholmod_updown(false,ldel,Linter,&c);
-      //print_sparse(ldel);
       cholmod_free_sparse (&ldel,&c);
     }else{
-      // i just need to delete some weigths on the diagonal
+      // if g is the pivot i just need to delete some weigths on the diagonal
       cholmod_sparse * ldel = cholmod_tools_edges_diag_inter(V, graph[h].inter_edges,&c);
       cholmod_updown(false,ldel,Linter,&c);
-      //print_sparse(ldel);
       cholmod_free_sparse (&ldel,&c);
     }
 
-    Rcout << "Time elapsed: " << t.elapsed() << " seconds" << std::endl;
-    Rcout << "-----" << cholmod_tools_logdet(Linter) << "-----" << std::endl;
-    PriorInter[imerge] = cholmod_tools_logdet(Linter);
+    //Rcout << "Time elapsed: " << t.elapsed() << " seconds" << std::endl;
+    //Rcout << "-----" << cholmod_tools_logdet(Linter) << "-----" << std::endl;
+    PriorInter[imerge] = cholmod_tools_logdet_subset(Linter,inter_active_nodes);
   }
   
   

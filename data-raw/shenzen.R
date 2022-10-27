@@ -110,7 +110,7 @@ data("modesshare.idf")
 
 
 
-X=modesshare.idf |> 
+X=modesshare.idf |> filter(DEP %in% c(75,92,93,94)) |>
   group_by(CODE_IRIS,NOM_COM)|>
   transmute(across(nodep:tcom,\(v){log((v+1)/(voiture+1))})) |>
   select(-voiture)
