@@ -52,7 +52,7 @@ struct multiedge
 struct bayesian_node : abstract_node
 {
   std::map<int,multiedge,std::greater<double>> neibs;
-  std::list<int> intra_nodes;
+  std::set<int,std::greater<int>> intra_nodes;
   std::set<int> intra_pivot_edges;
   int intra_pivot;
   int i_inter;

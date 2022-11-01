@@ -31,13 +31,71 @@ double cholmod_tools_logdet(cholmod_factor * L){
 }
 
 
+double cholmod_tools_logdet_subset_delta(cholmod_factor * L,const std::set<int,std::greater<int>>& subset,double Lintra_diag[],int imin){
+  double logdet_delta = 0;
+  for(auto it=subset.begin();it!=subset.end();++it){
+    int r = *it;
+    if(r>=imin){
+      int pd = ((int*)L->p)[r];
+      double val = ((double*)L->x)[pd];
+      if(val>0){
+        logdet_delta+= log(val)-log(Lintra_diag[r]);
+        Lintra_diag[r]=val;
+      }else{
+        Rcout << "warning:" << r << " : " << val << std::endl;
+      }
+    }else{
+      Rcout << std::endl;
+      break;
+    }
+  }
+  return logdet_delta;
+}
 
 
-template<template<typename, typename> typename Container, typename T, typename Allocator>
-double cholmod_tools_logdet_subset(cholmod_factor * L,const Container<T, Allocator>& subset){
+double cholmod_tools_logdet_subset_delta_nochange(cholmod_factor * L,const std::set<int,std::greater<int>>& subset,double Lintra_diag[],int imin){
+  double logdet_delta = 0;
+  for(auto it=subset.begin();it!=subset.end();++it){
+    int r = *it;
+    if(r>=imin){
+      int pd = ((int*)L->p)[r];
+      double val = ((double*)L->x)[pd];
+      if(val>0){
+        logdet_delta+= log(val)-log(Lintra_diag[r]);
+      }else{
+        Rcout << "warning:" << r << " : " << val << std::endl;
+      }
+    }else{
+      Rcout << std::endl;
+      break;
+    }
+  }
+  return logdet_delta;
+}
+
+double cholmod_tools_logdet_subset(cholmod_factor * L,const std::set<int,std::greater<int>>& subset,int imin){
   double logdet = 0;
-  for(const T& it : subset){
-    int r = it;
+  for(auto it=subset.begin();it!=subset.end();++it){
+    int r = *it;
+    if(r>=imin){
+      int pd = ((int*)L->p)[r];
+      double val = ((double*)L->x)[pd];
+      if(val>0){
+        logdet+= log(val); 
+      }else{
+        Rcout << "warning:" << r << " : " << val << std::endl;
+      }
+    }else{
+      break;
+    }
+  }
+  return logdet;
+}
+
+double cholmod_tools_logdet_subset(cholmod_factor * L,const std::set<int,std::greater<int>>& subset){
+  double logdet = 0;
+  for(auto it=subset.begin();it!=subset.end();++it){
+    int r = *it;
     int pd = ((int*)L->p)[r];
     double val = ((double*)L->x)[pd];
     if(val>0){
@@ -131,15 +189,22 @@ cholmod_sparse * cholmod_tools_oldpivotcol(int size,int pivot, int old_pivot,std
 
 
 
-cholmod_factor * cholmod_tools_Lup_intra(cholmod_factor * F,int pivot, int old_pivot,std::set<int> old_pivot_edges,const std::vector<std::pair<int, int>> * cutset,int * permutation, cholmod_common * com){
+int cholmod_tools_Lup_intra(cholmod_factor * F,int pivot, int old_pivot,std::set<int> old_pivot_edges,const std::vector<std::pair<int, int>> * cutset,int * permutation, cholmod_common * com){
   
   std::vector<std::pair<int, int>> cutset_loc(cutset->size());
   int i=0;
+  int imin = std::numeric_limits<int>::max();
   for (auto it=cutset->begin(); it !=cutset->end(); ++it){
+    if(permutation[it->first]<imin){
+      imin=permutation[it->first];
+    }
+    if(permutation[it->second]<imin){
+      imin=permutation[it->second];
+    }
     cutset_loc[i] = std::make_pair(permutation[it->first],permutation[it->second]);
     i++;
   }
-
+  
   cholmod_sparse* links1 = cholmod_tools_linkstocol(F->n,pivot,old_pivot,&cutset_loc,com);
 
   cholmod_updown(true,links1,F,com);
@@ -148,6 +213,12 @@ cholmod_factor * cholmod_tools_Lup_intra(cholmod_factor * F,int pivot, int old_p
   
   cholmod_free_sparse (&links1, com);
 
+  
+  for (auto it=old_pivot_edges.begin();it!=old_pivot_edges.end();++it){
+    if(*it<imin){
+      imin = *it; 
+    }
+  }
   cholmod_sparse * col1 = cholmod_tools_oldpivotcol(F->n,pivot,old_pivot,old_pivot_edges,&cutset_loc,com);
 
   cholmod_rowadd(old_pivot,col1,F,com);
@@ -155,34 +226,49 @@ cholmod_factor * cholmod_tools_Lup_intra(cholmod_factor * F,int pivot, int old_p
 
   cholmod_free_sparse (&col1, com);
   
-  return (F) ;
+  return (imin) ;
 }
 
-double cholmod_tools_cutcost(cholmod_factor * F,int pivot,int old_pivot,std::set<int> old_pivot_edges,const std::vector<std::pair<int, int>> * cutset,int * permutation,const std::list<int> * node_g_intra_nodes,const std::list<int> * node_h_intra_nodes, cholmod_common * com){
+double cholmod_tools_cutcost(cholmod_factor * F,double Lintra_diag[],int pivot,int old_pivot,std::set<int> old_pivot_edges,const std::vector<std::pair<int, int>> * cutset,int * permutation,const std::set<int,std::greater<int>> * node_g_intra_nodes,const std::set<int,std::greater<int>> * node_h_intra_nodes, cholmod_common * com){
   
-
+  // double lognbtreeS =  cholmod_tools_logdet_subset(F,*node_g_intra_nodes)+cholmod_tools_logdet_subset(F,*node_h_intra_nodes);
   std::vector<std::pair<int, int>> cutset_loc(cutset->size());
   int i=0;
+  int imin = std::numeric_limits<int>::max();
   for (auto it=cutset->begin(); it !=cutset->end(); ++it){
+    if(permutation[it->first]<imin){
+      imin=permutation[it->first];
+    }
+    if(permutation[it->second]<imin){
+      imin=permutation[it->second];
+    }
     cutset_loc[i] = std::make_pair(permutation[it->first],permutation[it->second]);
     i++;
   }
   //double lognbtree=0;
   cholmod_sparse* links1 = cholmod_tools_linkstocol(F->n,pivot,old_pivot,&cutset_loc,com);
   cholmod_updown(true,links1,F,com);
+  for (auto it=old_pivot_edges.begin();it!=old_pivot_edges.end();++it){
+    if(*it<imin){
+      imin = *it; 
+    }
+  }
   cholmod_sparse * col1 = cholmod_tools_oldpivotcol(F->n,pivot,old_pivot,old_pivot_edges,&cutset_loc,com);
   cholmod_rowadd(old_pivot,col1,F,com);
-  //
   // // computelogdet
-  double lognbtree =  cholmod_tools_logdet_subset(F,*node_g_intra_nodes)+cholmod_tools_logdet_subset(F,*node_h_intra_nodes);
-  //
+  double delta_lnbtg = cholmod_tools_logdet_subset_delta_nochange(F,*node_g_intra_nodes,Lintra_diag,imin);
+  double delta_lnbth = cholmod_tools_logdet_subset_delta_nochange(F,*node_h_intra_nodes,Lintra_diag,imin);
+  // double lognbtreeT =  cholmod_tools_logdet_subset(F,*node_g_intra_nodes)+cholmod_tools_logdet_subset(F,*node_h_intra_nodes);
+  double delta=delta_lnbtg+delta_lnbth;
+  // Rcout << "----- delta : " << delta << std::endl;
+  // Rcout << "----- delta 2 : " << lognbtreeT-lognbtreeS << std::endl;
   // revert the changes
   cholmod_rowdel(old_pivot,NULL,F,com);
   cholmod_free_sparse (&col1, com);
   cholmod_updown(false,links1,F,com);
   cholmod_free_sparse (&links1, com);
   
-  return (lognbtree) ;
+  return (delta) ;
 }
 
 

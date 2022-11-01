@@ -106,16 +106,16 @@ pr |> select(inter,inter_comp,intra,intra_comp)
 
 library(dplyr)
 library(sf)
-data("modesshare.idf")
+data("modesshare.pts")
 
 
 
-X=modesshare.idf |> filter(DEP %in% c(75,92,93,94)) |>
+X=modesshare.pts |>
   group_by(CODE_IRIS,NOM_COM)|>
   transmute(across(nodep:tcom,\(v){log((v+1)/(voiture+1))})) |>
   select(-voiture)
 
-hc_res_idf=gtclust_poly(X,gtmethod_bayes_dgmm())
+hc_res_idf=gtclust_delaunay(X,gtmethod_bayes_dgmm())
 
 k_max= 15
 N=nrow(X)
@@ -126,3 +126,4 @@ pr$Ll=hc_res_small$Ll[N:(N-k_max+1)]
 pr$intra_comp=hc_res_idf$PriorIntra[N:(N-k_max+1)]
 pr$inter_comp=hc_res_idf$PriorInter[N:(N-k_max+1)]
 pr |> select(inter,inter_comp,intra,intra_comp)
+
