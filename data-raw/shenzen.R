@@ -110,12 +110,21 @@ data("modesshare.pts")
 
 
 
-X=modesshare.pts |> filter(DEP %in% c(75,92,93,94)) |>
+X=modesshare.pts |> filter(DEP %in% c(75,92,93,94,77,78,91,95,28,45,41,37,36,18,23,83,60)) |>
   group_by(CODE_IRIS,NOM_COM)|>
   transmute(across(nodep:tcom,\(v){log((v+1)/(voiture+1))})) |>
   select(-voiture)
 
 hc_res_idf=gtclust_delaunay(X,gtmethod_bayes_dgmm())
+
+
+X=modesshare.pts |> filter(DEP %in% c(23,83,60)) |>
+  group_by(CODE_IRIS,NOM_COM)|>
+  transmute(across(nodep:tcom,\(v){log((v+1)/(voiture+1))})) |>
+  select(-voiture)
+
+hc_res_idf=gtclust_delaunay(X,gtmethod_bayes_dgmm())
+
 
 k_max= 15
 N=nrow(X)

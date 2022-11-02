@@ -25,6 +25,8 @@ double cholmod_tools_logdet(cholmod_factor * L){
     double val = ((double*)L->x)[pd];
     if(val>0){
       logdet+= log(val); 
+    }else{
+      stop("Error: Cholevshy factorization update failed");
     }
   }
   return logdet;
@@ -43,6 +45,7 @@ double cholmod_tools_logdet_subset_delta(cholmod_factor * L,const std::set<int,s
         Lintra_diag[r]=val;
       }else{
         Rcout << "warning:" << r << " : " << val << std::endl;
+        stop("Error: Cholevshy factorization update failed");
       }
     }else{
       break;
@@ -63,6 +66,7 @@ double cholmod_tools_logdet_subset_delta_nochange(cholmod_factor * L,const std::
         logdet_delta+= log(val)-log(Lintra_diag[r]);
       }else{
         Rcout << "warning:" << r << " : " << val << std::endl;
+        stop("Error: Cholevshy factorization update failed");
       }
     }else{
       break;
@@ -81,7 +85,8 @@ double cholmod_tools_logdet_subset(cholmod_factor * L,const std::set<int,std::gr
       if(val>0){
         logdet+= log(val); 
       }else{
-        Rcout << "warning:" << r << " : " << val << std::endl;
+        stop("Error: Cholevshy factorization update failed");
+        //Rcout << "warning:" << r << " : " << val << std::endl;
       }
     }else{
       break;
@@ -99,7 +104,8 @@ double cholmod_tools_logdet_subset(cholmod_factor * L,const std::set<int,std::gr
     if(val>0){
       logdet+= log(val); 
     }else{
-      Rcout << "warning:" << r << " : " << val << std::endl;
+      stop("Error: Cholevshy factorization update failed");
+      //Rcout << "warning:" << r << " : " << val << std::endl;
     }
   }
   return logdet;

@@ -437,6 +437,9 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
   Ll[0]=Llc;
   PriorIntra[0]=0;
   int nbbridge=0;
+  int best_imerge_ll=-1;
+  double best_ll = Llc;
+  
   for(int imerge=0;imerge<(V-1);imerge++){
     Rcout << "Merge N°" << imerge <<  std::endl;
     
@@ -541,6 +544,10 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     height[imerge]=best_merge->first;
     Ll[imerge+1] = Llc-method->dist(&node_g,&node_h);
     Llc = Ll[imerge+1];
+    if(Llc>best_ll){
+      best_ll=Llc;
+      best_imerge_ll=imerge;
+    }
     
     // update the inter-graph and priority queue
     for(auto nei_g = node_g.neibs.begin();nei_g!=node_g.neibs.end();nei_g++){
@@ -692,6 +699,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     
   }
   
+
   Rcout << "# bridges : " << nbbridge << std::endl;
   // intialize first value of prior inter // last value of prior intra // log nb of spanning tree
   cholmod_factor* Linter = cholmod_allocate_factor(V,&c);
@@ -699,7 +707,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
 
   std::set<int,std::greater<int>> inter_active_nodes;
   inter_active_nodes.insert(inter_active_nodes.begin(),inter_pivot);
-  for(int imerge=(V-2);imerge>=std::max(0,V-1000);imerge--){
+  for(int imerge=(V-2);imerge>=std::max(0,best_imerge_ll);imerge--){
     //Timer t;
     int id_c = V+imerge;
     int g = merge(imerge,0);
