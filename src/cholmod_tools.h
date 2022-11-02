@@ -191,7 +191,7 @@ int cholmod_tools_Lup_intra(cholmod_factor * F,int pivot, int old_pivot,std::set
   
   std::vector<std::pair<int, int>> cutset_loc(cutset->size());
   int i=0;
-  int imin = std::numeric_limits<int>::max();
+  int imin = old_pivot;
   for (auto it=cutset->begin(); it !=cutset->end(); ++it){
     if(permutation[it->first]<imin){
       imin=permutation[it->first];
@@ -217,6 +217,7 @@ int cholmod_tools_Lup_intra(cholmod_factor * F,int pivot, int old_pivot,std::set
       imin = *it; 
     }
   }
+
   cholmod_sparse * col1 = cholmod_tools_oldpivotcol(F->n,pivot,old_pivot,old_pivot_edges,&cutset_loc,com);
 
   cholmod_rowadd(old_pivot,col1,F,com);
@@ -232,7 +233,7 @@ double cholmod_tools_cutcost(cholmod_factor * F,double Lintra_diag[],int pivot,i
   // double lognbtreeS =  cholmod_tools_logdet_subset(F,*node_g_intra_nodes)+cholmod_tools_logdet_subset(F,*node_h_intra_nodes);
   std::vector<std::pair<int, int>> cutset_loc(cutset->size());
   int i=0;
-  int imin = std::numeric_limits<int>::max();
+  int imin = old_pivot;
   for (auto it=cutset->begin(); it !=cutset->end(); ++it){
     if(permutation[it->first]<imin){
       imin=permutation[it->first];
@@ -251,15 +252,17 @@ double cholmod_tools_cutcost(cholmod_factor * F,double Lintra_diag[],int pivot,i
       imin = *it; 
     }
   }
+
   cholmod_sparse * col1 = cholmod_tools_oldpivotcol(F->n,pivot,old_pivot,old_pivot_edges,&cutset_loc,com);
   cholmod_rowadd(old_pivot,col1,F,com);
   // // computelogdet
   double delta_lnbtg = cholmod_tools_logdet_subset_delta_nochange(F,*node_g_intra_nodes,Lintra_diag,imin);
   double delta_lnbth = cholmod_tools_logdet_subset_delta_nochange(F,*node_h_intra_nodes,Lintra_diag,imin);
-  // double lognbtreeT =  cholmod_tools_logdet_subset(F,*node_g_intra_nodes)+cholmod_tools_logdet_subset(F,*node_h_intra_nodes);
   double delta=delta_lnbtg+delta_lnbth;
+  // double lognbtreeT =  cholmod_tools_logdet_subset(F,*node_g_intra_nodes)+cholmod_tools_logdet_subset(F,*node_h_intra_nodes);
   // Rcout << "----- delta : " << delta << std::endl;
   // Rcout << "----- delta 2 : " << lognbtreeT-lognbtreeS << std::endl;
+  // delta= lognbtreeT-lognbtreeS;
   // revert the changes
   cholmod_rowdel(old_pivot,NULL,F,com);
   cholmod_free_sparse (&col1, com);

@@ -492,7 +492,6 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     bool bridge_merge = false;
     if(cutset.size()==1){
       nbbridge++;
-      Rcout << "bridge" << std::endl;
       bridge_merge = true;
     }
     // build cholevky factorization of new node
@@ -503,17 +502,17 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     // store lognbtree
 
     double ld_delta = cholmod_tools_logdet_subset_delta(Lintra,new_node.intra_nodes,Lintra_diag,imin);
-    
     new_node.lognbtree =  node_g.lognbtree+node_h.lognbtree+ld_delta;
-    //cholmod_tools_logdet_subset(Lintra,new_node.intra_nodes);
+    if(new_node.lognbtree<0){
+      new_node.lognbtree=0;
+    }
+    // double ld = cholmod_tools_logdet_subset(Lintra,new_node.intra_nodes);
+    // Rcout << ld << std::endl;
+
 
     Rcout << "lognbtree - intra :" << new_node.lognbtree << std::endl;
     PriorIntra[imerge+1] = PriorIntra[imerge];
     PriorIntra[imerge+1]+= new_node.lognbtree-node_g.lognbtree-node_h.lognbtree;
-    
-    
-
-    
     
     
     
@@ -639,28 +638,20 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
       double lnbtree = e.intra_lnbtree;
       double j = nei->first;
       
-      // Rcout << "Lnbt 1 : " << lnbtree << std::endl;
       // update the merge cost to incorporate the prior
       // std::set<int> old_pivot_edges,const std::vector<std::pair<int, int>> * cutset,
       double cc=0;
-      
+      // if we manage to compute lnbtree in bridge merge case do nothing but if this is not the case 
+      // we must compute it
       if(std::isnan(lnbtree)){
-          //Rcout << "cc comp" << std::endl;
           lnbtree = cut_cost(Lintra,Lintra_diag,&(graph[node_id]),&(graph[j]),pp,&c);
-          //Rcout << lnbtree << std::endl;
           graph[node_id].neibs.at(j).intra_lnbtree=lnbtree; 
           graph[j].neibs.at(node_id).intra_lnbtree=lnbtree;
 
       }
-      else{
-        //Rcout << "cc short" << std::endl;
-        //Rcout << lnbtree << std::endl;
-        //Rcout << cut_cost(Lintra,Lintra_diag,&(graph[node_id]),&(graph[j]),pp,&c) << std::endl;
-      }
       int cutset_size = graph[node_id].neibs.at(graph[j].id).edges.size();
       cc = lnbtree-graph[node_id].lognbtree-graph[j].lognbtree-log(cutset_size);
       
-      //Rcout << cc << std::endl;
       
       
       
