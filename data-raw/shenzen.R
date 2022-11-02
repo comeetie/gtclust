@@ -110,7 +110,7 @@ data("modesshare.pts")
 
 
 
-X=modesshare.pts |>
+X=modesshare.pts |> filter(DEP %in% c(75,92,93,94)) |>
   group_by(CODE_IRIS,NOM_COM)|>
   transmute(across(nodep:tcom,\(v){log((v+1)/(voiture+1))})) |>
   select(-voiture)
@@ -127,3 +127,14 @@ pr$intra_comp=hc_res_idf$PriorIntra[N:(N-k_max+1)]
 pr$inter_comp=hc_res_idf$PriorInter[N:(N-k_max+1)]
 pr |> select(inter,inter_comp,intra,intra_comp)
 
+df_nogeo=sf::st_drop_geometry(X)
+xy = sf::st_coordinates(X)[,1:2]
+delaunay = RTriangle::triangulate(RTriangle::pslg(xy))
+nb=rep(list(c()),nrow(X))
+for (il in 1:nrow(delaunay$E)){
+  r = delaunay$E[il,]
+  nb[[r[1]]]=c(nb[[r[1]]],r[2])
+  nb[[r[2]]]=c(nb[[r[2]]],r[1])
+}
+
+hc_res=gtclust_graph(nb,df_nogeo,gtmethod_bayes_dgmm(),'raw')

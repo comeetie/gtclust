@@ -37,7 +37,7 @@ double cut_cost(cholmod_factor * Lintra,double Lintra_diag[],bayesian_node * nod
     int pivot = node_g->intra_pivot; 
     int old_pivot=node_h->intra_pivot;
     std::set<int> old_pivot_edges = node_h->intra_pivot_edges;
-    double delta = cholmod_tools_cutcost(Lintra,Lintra_diag,pivot,old_pivot,old_pivot_edges,&cutset,permutation,&node_g->intra_nodes,&node_h->intra_nodes,com);
+    double delta = cholmod_tools_cutcost(Lintra,Lintra_diag,pivot,old_pivot,old_pivot_edges,&cutset,permutation,node_g->intra_nodes,node_h->intra_nodes,com);
     logdet = node_g->lognbtree+node_h->lognbtree+delta; 
     // logdetdiff = delta-log(cutset.size());
     // Rcout << "logdet :: " << logdet << std::endl;
@@ -436,9 +436,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
 
   Ll[0]=Llc;
   PriorIntra[0]=0;
-  int nbsing=0;
   int nbbridge=0;
-  //Rcout << "Main loop" << std::endl;
   for(int imerge=0;imerge<(V-1);imerge++){
     Rcout << "Merge N°" << imerge <<  std::endl;
     
@@ -473,42 +471,66 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     bayesian_node new_node(method->merge(node_id,&node_g,&node_h,height[imerge]));
     
     
-    // update intra node graph
-    // add node from g
-    //Rcout << "g size :" << node_g.intra_nodes.size();
-    //Rcout << ", h size :" << node_h.intra_nodes.size() << std::endl;
-    if(node_g.intra_nodes.size()==1  || node_h.intra_nodes.size()==1){
-      nbsing++;
-    }
-    new_node.intra_nodes = node_g.intra_nodes;
-    //new_node.intra_nodes.splice(new_node.intra_nodes.end(),node_h.intra_nodes);
-    for (auto hnode = node_h.intra_nodes.begin();hnode!=node_h.intra_nodes.end(); ++hnode){
-      new_node.intra_nodes.insert(*hnode); 
-    }
-    
     // get the cutset g,h
     std::vector<std::pair<int, int>> cutset = node_g.neibs.at(h).edges;
-    //Rcout << "cutset size :" << cutset.size() << std::endl;
+    
+    Timer t1;
+    // get the limits of elimination tree for logdet delta computations
+    int iminh = node_h.intra_pivot;
+    int iming = std::numeric_limits<int>::max();
+    int ig,ih;
+    for (auto it=cutset.begin(); it !=cutset.end(); ++it){
+      if(node_g.intra_nodes.find(pp[it->first])!=node_g.intra_nodes.end()){
+        ig = pp[it->first];
+        ih = pp[it->second];
+      }else{
+        ih = pp[it->first];
+        ig = pp[it->second];
+      }
+      if(ig<iming && ig!=node_g.intra_pivot){
+        iming=ig;
+      }
+      if(ih<iminh){
+        iminh=ih;
+      }
+    }
+    Rcout << "Time elapsed (cutset find origine): " << t1.elapsed() << " seconds" << std::endl;
+    // check for bridge merge in this case we may optimize the update of merge cost
     bool bridge_merge = false;
     if(cutset.size()==1){
       nbbridge++;
       bridge_merge = true;
     }
+
     // build cholevky factorization of new node
-    double imin = cholmod_tools_Lup_intra(Lintra,node_g.intra_pivot,node_h.intra_pivot,node_h.intra_pivot_edges,&cutset,pp,&c);
+    Timer t2;
+    cholmod_tools_Lup_intra(Lintra,node_g.intra_pivot,node_h.intra_pivot,node_h.intra_pivot_edges,&cutset,pp,&c);
+    Rcout << "Time elapsed (update): " << t2.elapsed() << " seconds" << std::endl;
     // update remaining pivot edges
     new_node.intra_pivot = node_g.intra_pivot;
     new_node.intra_pivot_edges =  cholmod_tools_pivotedgesup_intra(V,node_g.intra_pivot,node_g.intra_pivot_edges,&cutset,pp);
     // store lognbtree
-
-    double ld_delta = cholmod_tools_logdet_subset_delta(Lintra,new_node.intra_nodes,Lintra_diag,imin);
-    new_node.lognbtree =  node_g.lognbtree+node_h.lognbtree+ld_delta;
+    double ld_deltag = cholmod_tools_logdet_subset_delta(Lintra,node_g.intra_nodes,Lintra_diag,iming);
+    double ld_deltah = cholmod_tools_logdet_subset_delta(Lintra,node_h.intra_nodes,Lintra_diag,iminh);
+    new_node.lognbtree =  node_g.lognbtree+ld_deltag+node_h.lognbtree+ld_deltah;
+    // clean small values coming from numerical comp
     if(new_node.lognbtree<0){
       new_node.lognbtree=0;
     }
-    // double ld = cholmod_tools_logdet_subset(Lintra,new_node.intra_nodes);
-    // Rcout << ld << std::endl;
 
+    
+    // merge the cluster node list (taking at basis the biggest cluster of g,h)
+    if(node_g.intra_nodes.size()>node_h.intra_nodes.size()){
+      new_node.intra_nodes = node_g.intra_nodes;
+      for (auto hnode = node_h.intra_nodes.begin();hnode!=node_h.intra_nodes.end(); ++hnode){
+        new_node.intra_nodes.insert(*hnode); 
+      }
+    }else{
+      new_node.intra_nodes = node_h.intra_nodes;
+      for (auto gnode = node_g.intra_nodes.begin();gnode!=node_g.intra_nodes.end(); ++gnode){
+        new_node.intra_nodes.insert(*gnode); 
+      }
+    }
 
     Rcout << "lognbtree - intra :" << new_node.lognbtree << std::endl;
     PriorIntra[imerge+1] = PriorIntra[imerge];
@@ -625,7 +647,6 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     // add the newly created node
     graph[node_id]=new_node;
   
-    PriorInter[imerge+1] = 0;
     
     
     
@@ -671,7 +692,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     
   }
   
-  Rcout << "# singles : " << nbsing << ", # bridges : " << nbbridge << std::endl;
+  Rcout << "# bridges : " << nbbridge << std::endl;
   // intialize first value of prior inter // last value of prior intra // log nb of spanning tree
   cholmod_factor* Linter = cholmod_allocate_factor(V,&c);
   int inter_pivot = graph[2*V-2].i_inter;
