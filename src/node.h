@@ -32,6 +32,7 @@ struct node : abstract_node
 struct multiedge
 {
   double height;
+  double intra_lnbtree;
   int size;
   std::vector<std::pair<int, int>> edges;
   void add_edge(std::pair<int, int> uv){

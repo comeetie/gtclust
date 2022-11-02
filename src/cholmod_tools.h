@@ -45,7 +45,6 @@ double cholmod_tools_logdet_subset_delta(cholmod_factor * L,const std::set<int,s
         Rcout << "warning:" << r << " : " << val << std::endl;
       }
     }else{
-      Rcout << std::endl;
       break;
     }
   }
@@ -66,7 +65,6 @@ double cholmod_tools_logdet_subset_delta_nochange(cholmod_factor * L,const std::
         Rcout << "warning:" << r << " : " << val << std::endl;
       }
     }else{
-      Rcout << std::endl;
       break;
     }
   }

@@ -32,18 +32,21 @@ double cut_cost(cholmod_factor * Lintra,double Lintra_diag[],bayesian_node * nod
 {
   
   std::vector<std::pair<int, int>> cutset = node_g->neibs.at(node_h->id).edges;
-  double logdetdiff = 0;
+  double logdet = 0;
   if(cutset.size()>1){
     int pivot = node_g->intra_pivot; 
     int old_pivot=node_h->intra_pivot;
     std::set<int> old_pivot_edges = node_h->intra_pivot_edges;
     double delta = cholmod_tools_cutcost(Lintra,Lintra_diag,pivot,old_pivot,old_pivot_edges,&cutset,permutation,&node_g->intra_nodes,&node_h->intra_nodes,com);
-    logdetdiff = delta-log(cutset.size());
-    //Rcout << "logdet :: " << logdet << std::endl;
-    //Rcout << "logdetdiff :: " << logdetdiff << std::endl;
+    logdet = node_g->lognbtree+node_h->lognbtree+delta; 
+    // logdetdiff = delta-log(cutset.size());
+    // Rcout << "logdet :: " << logdet << std::endl;
+    // Rcout << "logdetdiff :: " << logdetdiff << std::endl;
+  }else{
+    logdet = node_g->lognbtree+node_h->lognbtree;
   }
   
-  return logdetdiff;
+  return logdet;
 }
 
 
@@ -389,6 +392,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
           double d = method->dist(&cnode,&vnode);
           multiedge e = multiedge(1,d);
           e.add_edge(std::make_pair(i,j));
+          e.intra_lnbtree=0;
           cnode.neibs.insert(std::make_pair(j,e));
           
           if(i<j){
@@ -485,8 +489,11 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     // get the cutset g,h
     std::vector<std::pair<int, int>> cutset = node_g.neibs.at(h).edges;
     //Rcout << "cutset size :" << cutset.size() << std::endl;
+    bool bridge_merge = false;
     if(cutset.size()==1){
       nbbridge++;
+      Rcout << "bridge" << std::endl;
+      bridge_merge = true;
     }
     // build cholevky factorization of new node
     double imin = cholmod_tools_Lup_intra(Lintra,node_g.intra_pivot,node_h.intra_pivot,node_h.intra_pivot_edges,&cutset,pp,&c);
@@ -542,6 +549,16 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
       // new links in graph
       if(j!=h){
         // distance calculation
+        
+        // bridge merge ! if h is also a neib we can't use the shortcut
+        auto search = node_h.neibs.find(j);
+        if(bridge_merge && search==node_h.neibs.end()){
+          // link j -> node_id
+          old_links.intra_lnbtree+=node_h.lognbtree;
+        }else{
+          old_links.intra_lnbtree=std::nan("");
+        }
+        
         double d = method->dist(&new_node,&graph[j]);
         old_links.height=d;
         new_node.neibs.insert(std::make_pair(j,old_links));
@@ -581,10 +598,18 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
         if(new_node.neibs.find(j)==new_node.neibs.end()){
           double d = method->dist(&new_node,&graph[j]);
           old_links.height=d;
+          // if bridge merge 
+          if(bridge_merge){
+            // link j -> node_id
+            old_links.intra_lnbtree+=node_g.lognbtree;
+          }else{
+            old_links.intra_lnbtree=std::nan("");
+          }
+          
           new_node.neibs.insert(std::make_pair(j,old_links));
           graph[j].neibs.insert(std::make_pair(node_id,old_links));
         }else{
-          // the link was already created during the inpextion of g neibs
+          // the link was already created during the inspection of g neibs
           new_node.neibs.at(j).merge_edges(old_links);
           graph[j].neibs.at(node_id).merge_edges(old_links);
         }
@@ -611,14 +636,32 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     for(auto nei = new_node.neibs.begin();nei!=new_node.neibs.end();nei++){
       multiedge e = nei->second;
       double d = e.height;
+      double lnbtree = e.intra_lnbtree;
       double j = nei->first;
       
+      // Rcout << "Lnbt 1 : " << lnbtree << std::endl;
       // update the merge cost to incorporate the prior
       // std::set<int> old_pivot_edges,const std::vector<std::pair<int, int>> * cutset,
       double cc=0;
-      if(V<5000){
-        cc = cut_cost(Lintra,Lintra_diag,&new_node,&(graph[j]),pp,&c);
+      
+      if(std::isnan(lnbtree)){
+          //Rcout << "cc comp" << std::endl;
+          lnbtree = cut_cost(Lintra,Lintra_diag,&(graph[node_id]),&(graph[j]),pp,&c);
+          //Rcout << lnbtree << std::endl;
+          graph[node_id].neibs.at(j).intra_lnbtree=lnbtree; 
+          graph[j].neibs.at(node_id).intra_lnbtree=lnbtree;
+
       }
+      else{
+        //Rcout << "cc short" << std::endl;
+        //Rcout << lnbtree << std::endl;
+        //Rcout << cut_cost(Lintra,Lintra_diag,&(graph[node_id]),&(graph[j]),pp,&c) << std::endl;
+      }
+      int cutset_size = graph[node_id].neibs.at(graph[j].id).edges.size();
+      cc = lnbtree-graph[node_id].lognbtree-graph[j].lognbtree-log(cutset_size);
+      
+      //Rcout << cc << std::endl;
+      
       
       
       double nd = d-cc;
