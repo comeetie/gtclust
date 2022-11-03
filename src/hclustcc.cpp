@@ -4,6 +4,8 @@
 #include "node.h"
 #include "LaplaceDirichlet.h"
 #include "cholmod_tools.h"
+// [[Rcpp::depends(RcppProgress)]]
+#include <progress.hpp>
 using namespace Rcpp;
 
 class Timer
@@ -126,7 +128,7 @@ GTMethod::GTMethod * init_method(List method_obj){
 }
 
 //[[Rcpp::export]]
-List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
+List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,bool display_progress) {
   
   
   
@@ -192,7 +194,13 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
   NumericVector Prior(V);
   Ll[0]=Llc;
   Prior[0]=Pc;
+  Progress p(V-1, display_progress);
   for(int imerge=0;imerge<(V-1);imerge++){
+    
+    if (Progress::check_abort() ){
+      stop("Error : user interupt.");
+    }
+    p.increment(); 
     queue_size[imerge]=priority_queue.size();
     int K_before = V-imerge; 
     int node_id = V+imerge;
@@ -350,7 +358,7 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
 
 
 //[[Rcpp::export]]
-List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj) {
+List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,bool display_progress,bool approx) {
   
   
   // start cholmod
@@ -376,7 +384,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
   // current negative loglike
   double Llc = 0;
   
-  //Rcout << "init" << std::endl;
+
   int nblinks = 0;
   for(int i=0; i<nb.length(); ++i){
     if(nb[i]!=R_NilValue) {
@@ -436,13 +444,16 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
 
   Ll[0]=Llc;
   PriorIntra[0]=0;
-  int nbbridge=0;
   int best_imerge_ll=-1;
   double best_ll = Llc;
   
+  Progress p(V-1, display_progress);
   for(int imerge=0;imerge<(V-1);imerge++){
-    Rcout << "Merge N°" << imerge <<  std::endl;
-    
+
+    if (Progress::check_abort() ){
+      stop("Error : user interupt.");
+    }
+    p.increment(); 
     
     queue_size[imerge]=priority_queue.size();
     int K_before = V-imerge; 
@@ -503,7 +514,6 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     // check for bridge merge in this case we may optimize the update of merge cost
     bool bridge_merge = false;
     if(cutset.size()==1){
-      nbbridge++;
       bridge_merge = true;
     }
 
@@ -673,14 +683,17 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
       double cc=0;
       // if we manage to compute lnbtree in bridge merge case do nothing but if this is not the case 
       // we must compute it
-      if(std::isnan(lnbtree)){
+      // in approx mode the prior is not used to sort the merge
+      if(!approx){
+        if(std::isnan(lnbtree)){
           lnbtree = cut_cost(Lintra,Lintra_diag,&(graph[node_id]),&(graph[j]),pp,&c);
           graph[node_id].neibs.at(j).intra_lnbtree=lnbtree; 
           graph[j].neibs.at(node_id).intra_lnbtree=lnbtree;
-
+          
+        }
+        int cutset_size = graph[node_id].neibs.at(graph[j].id).edges.size();
+        cc = lnbtree-graph[node_id].lognbtree-graph[j].lognbtree-log(cutset_size);
       }
-      int cutset_size = graph[node_id].neibs.at(graph[j].id).edges.size();
-      cc = lnbtree-graph[node_id].lognbtree-graph[j].lognbtree-log(cutset_size);
       
       
       
@@ -702,7 +715,6 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
   }
   
 
-  Rcout << "# bridges : " << nbbridge << std::endl;
   // intialize first value of prior inter // last value of prior intra // log nb of spanning tree
   cholmod_factor* Linter = cholmod_allocate_factor(V,&c);
   int inter_pivot = graph[2*V-2].i_inter;

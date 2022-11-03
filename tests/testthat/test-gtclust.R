@@ -10,7 +10,7 @@ test_that("simple ward", {
   gthc <- gtclust::gtclust_graph(nb,X,method = "ward")
   hc   <- hclust(0.5*dist(X)^2,method="ward.D")
   testthat::expect_equal(hc$merge,gthc$merge)
-  testthat::expect_equal(hc$height,gthc$height,tolerance = 10^-6)
+  testthat::expect_equal(hc$height,gthc$Ll,tolerance = 10^-6)
 })
 
 
@@ -93,7 +93,7 @@ test_that("ward polygons", {
   geoagg <- geocutree(gthc,2)
   testthat::expect_equal(nrow(geoagg),2)
   testthat::expect_equal(sf::st_equals(geoagg$geometry[1],sf::st_union(df.sf[cutree(gthc,2)==1,]))[[1]],1)
-  geoaggX <- as.matrix(geoagg[,-1] |> sf::st_drop_geometry())
+  geoaggX <- as.matrix(geoagg[,-c(1,2)] |> sf::st_drop_geometry())
   cm <- colMeans(X[cutree(gthc,2)==1,])
   names(cm) <- colnames(geoaggX)
   testthat::expect_equal(geoaggX[1,],cm)
@@ -110,8 +110,8 @@ test_that("ward polygons", {
   testthat::expect_equal(sf::st_equals(geoagg$geometry[1],sf::st_union(df.sf[cutree(gthc,3)==1,]))[[1]],1)
   geoaggX <- as.matrix(geoagg[,-1] |> sf::st_drop_geometry())
   cm <- colMeans(X[cutree(gthc,3)==2,])
-  names(cm) <- colnames(geoaggX)
-  testthat::expect_equal(geoaggX[2,],cm)
+  names(cm) <- colnames(geoaggX)[2:3]
+  testthat::expect_equal(geoaggX[2,2:3],cm)
 })
 
 

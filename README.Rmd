@@ -19,7 +19,7 @@ knitr::opts_chunk$set(
 <!-- badges: start -->
 <!-- badges: end -->
 
-GTclust builds on top of `?gtclust_graph` it's main function to offers fast clustering of spatial or temporal data with contiguity constrained hierarchical clustering (with full-order relations see [@Guo2008,@Guo2009]). `?gtclust_graph` is a quite classical hierarchical clustering but which is designed to takes advantage of contiguity constraints defined with a graph between data-points. The contiguity naturally create a sparsely connected graph that can be leveraged to speed-up the calculations, thanks to efficient data-structure [@Ambroise2019], from $O(N^2D)$ to $O(M(log(M)+D))$, with $M$ the number of links in the contiguity graph. To reach these performances, the dissimilarity matrix is computed on the fly and the algorithm resort to a more simple "stored data" approach [@Murtagh2012], which even if known to be less efficient in the general case are well fitted for the contiguity constrained problems with full-order relations. This approach allows to have a low spatial complexity of $O(N)$ but is less efficient with `single` and `complete` linkage criterions. Furthermore, this make the use of non-euclidean dissimilarity measures impossible. Still one may used the classical linkage criterion compatible with a storage based approach and available in `hclust` or `agnes` : 
+GTclust builds on top of `?gtclust_graph` it's main function to offers fast clustering of spatial or temporal data with contiguity constrained hierarchical clustering (with full-order relations see [@Guo2008,@Guo2009]). `?gtclust_graph` is a quite classical hierarchical algorithm but which is designed to takes advantage of contiguity constraints defined with a graph between data-points. The contiguity naturally create a sparsely connected graph that can be leveraged to speed-up the calculations, thanks to efficient data-structure [@Ambroise2019], from $O(N^2D)$ to $O(M(log(M)+D))$, with $M$ the number of links in the contiguity graph. To reach these performances, the dissimilarity matrix is computed on the fly and the algorithm resort to a more simple "stored data" approach [@Murtagh2012], which even if known to be less efficient in the general case are well fitted for the contiguity constrained problems with full-order relations. This approach allows to have a low spatial complexity of $O(N)$ but is less efficient with `single` and `complete` linkage criterions. Furthermore, this make the use of non-euclidean dissimilarity measures impossible. Still one may used the classical linkage criterion compatible with a storage based approach and available in `hclust` or `agnes` : 
 
 - `ward` minimum within-cluster variance 
 - `centroid` or WPGMC
@@ -64,26 +64,20 @@ library(ggpubr)
 data("modesshare.idf")
 
 # compute row sums
-modesshare.idf <- modesshare.idf |> 
-  rowwise(CODE_IRIS) |> 
-  mutate(total = sum(c_across(nodep:tcom)))
+X <- modesshare.idf |>
+  group_by(CODE_IRIS,NOM_COM)|>
+  transmute(across(nodep:tcom,\(v){log((v+1)/(voiture+1))})) |>
+  select(-voiture)
 
-# normalize per rows
-modesshare.idf.percent = modesshare.idf |> 
-  filter(total!=0) |>
-  transmute(across(nodep:tcom,\(v){v/total})) 
 
-modesshare.idf.percent |> head()
 ```
 
 
 To do the clustering, we use the `poly` flavor of GTclust and just provide the polygons data.frame we had just prepared. Then we may use the classical function from `?hclust`, `?cutree` to cut the dendrogram at a specific level and the `?plot.gtclust` method to draw the dendrogram:
 
 ```{r clustering,fig.show='hold',out.width="100%",fig.width=12,fig.height=6}
-hc=gtclust_poly(modesshare.idf.percent,method="ward")
-plot(hc)+
-  ggtitle("Dendrogram of the modesshare.idf dataset","with ward linkage")+
-  scale_y_continuous("Within-cluster intertia")
+hc=gtclust_poly(X,method=gtmethod_bayes_dgmm(approx=TRUE),display_progress = TRUE)
+plot(hc)
 cutree(hc,k=30) |> head(20)
 ```
 
@@ -100,7 +94,7 @@ str(hc,max.level = 1)
 
 You may also use the `?geocutree` function which build directly a spatial data.frame with the clustering results: 
 ```{r geoagg}
-modesshare.idf.agg = geocutree(hc,k=500)
+modesshare.idf.agg = geocutree(hc,k=57)
 modesshare.idf.agg |> head()
 ```
 

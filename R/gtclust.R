@@ -21,19 +21,20 @@ NULL
 #' @param df an \code{\link[sf]{sf}} data.frame with polygons like features
 #' @param method linkage criterion in ward (default) or average, median
 #' @param scaling default scaling of the features in zscore (default) or raw (i.e. no scaling)
+#' @param display_progress boolean to set progression bar
 #' @return an \code{\link[stats]{hclust}} like object with additional slots
 #' \describe{
 #'   \item{data}{The numeric data (eventually scaled) used for the clustering}
 #'   \item{centers}{The protoypes of each tree nodes}
 #' }
 #' @export
-gtclust_temp=function(df,method="ward",scaling="raw"){
+gtclust_temp=function(df,method="ward",scaling="raw",display_progress=FALSE){
   nT = nrow(df)
   nb = lapply(1:nT,\(it){
     nei = c(it-1,it+1)
     nei[nei>0 & nei<=nT]
   })
-  hc_res=gtclust_graph(nb,df,method,scaling)
+  hc_res=gtclust_graph(nb,df,method,scaling,display_progress)
   hc_res$call=sys.call()
   hc_res
 }
@@ -46,6 +47,7 @@ gtclust_temp=function(df,method="ward",scaling="raw"){
 #' @param df an \code{\link[sf]{sf}} data.frame with polygons like features
 #' @param method linkage criterion in ward (default) or average, median
 #' @param scaling default scaling of the features in zscore (default) or raw (i.e. no scaling)
+#' @param display_progress boolean to set progression bar
 #' @return an \code{\link[stats]{hclust}} like object with additional slots
 #' \describe{
 #'   \item{data}{The numeric data (eventually scaled) used for the clustering}
@@ -54,7 +56,7 @@ gtclust_temp=function(df,method="ward",scaling="raw"){
 #'   \item{geotree}{geometries of the dendrogram no-leafs node as an sfc list}
 #' }
 #' @export
-gtclust_delaunay=function(df,method="ward",scaling="raw"){
+gtclust_delaunay=function(df,method="ward",scaling="raw",display_progress=FALSE){
   if(!methods::is(df,"sf")){
     stop("The dataset must be an sf data.frame.",call. = FALSE)
   }
@@ -73,7 +75,7 @@ gtclust_delaunay=function(df,method="ward",scaling="raw"){
     nb[[r[2]]]=c(nb[[r[2]]],r[1])
   }
 
-  hc_res=gtclust_graph(nb,df_nogeo,method,scaling)
+  hc_res=gtclust_graph(nb,df_nogeo,method,scaling,display_progress)
   hc_res$call=sys.call()
   # add geographical data
   hc_res$leafs_geometry = sf::st_geometry(df)
@@ -90,6 +92,7 @@ gtclust_delaunay=function(df,method="ward",scaling="raw"){
 #' @param epsilon maximum distance allowed
 #' @param method linkage criterion in ward (default) or average, median
 #' @param scaling default scaling of the features in zscore (default) or raw (i.e. no scaling)
+#' @param display_progress boolean to set progression bar
 #' @return an \code{\link[stats]{hclust}} like object with additional slots
 #' \describe{
 #'   \item{data}{The numeric data (eventually scaled) used for the clustering}
@@ -98,7 +101,7 @@ gtclust_delaunay=function(df,method="ward",scaling="raw"){
 #'   \item{geotree}{geometries of the dendrogram no-leafs node as an sfc list}
 #' }
 #' @export
-gtclust_dist=function(df,epsilon,method="ward",scaling="raw"){
+gtclust_dist=function(df,epsilon,method="ward",scaling="raw",display_progress=FALSE){
   if(!methods::is(df,"sf")){
     stop("The dataset must be an sf data.frame.",call. = FALSE)
   }
@@ -113,7 +116,7 @@ gtclust_dist=function(df,epsilon,method="ward",scaling="raw"){
   nb = sf::st_intersects(df,buf)
   class(nb)="list"
   
-  hc_res=gtclust_graph(nb,df_nogeo,method,scaling)
+  hc_res=gtclust_graph(nb,df_nogeo,method,scaling,display_progress)
   hc_res$call=sys.call()
   # add geographical data
   hc_res$leafs_geometry = sf::st_geometry(df)
@@ -129,6 +132,7 @@ gtclust_dist=function(df,epsilon,method="ward",scaling="raw"){
 #' @param k number of nearest neighbors to take for building the graph (the graph will be symmetric so some points may have in fine more neighbors)
 #' @param method linkage criterion in ward (default) or average, median
 #' @param scaling default scaling of the features in zscore (default) or raw (i.e. no scaling)
+#' @param display_progress boolean to set progression bar
 #' @return an \code{\link[stats]{hclust}} like object with additional slots
 #' \describe{
 #'   \item{data}{The numeric data (eventually scaled) used for the clustering}
@@ -137,7 +141,7 @@ gtclust_dist=function(df,epsilon,method="ward",scaling="raw"){
 #'   \item{geotree}{geometries of the dendrogram no-leafs node as an sfc list}
 #' }
 #' @export
-gtclust_knn=function(df,k=3,method="ward",scaling="raw"){
+gtclust_knn=function(df,k=3,method="ward",scaling="raw",display_progress=FALSE){
   if(!methods::is(df,"sf")){
     stop("The dataset must be an sf data.frame.",call. = FALSE)
   }
@@ -161,7 +165,7 @@ gtclust_knn=function(df,k=3,method="ward",scaling="raw"){
   }
 
   
-  hc_res=gtclust_graph(nb,df_nogeo,method,scaling)
+  hc_res=gtclust_graph(nb,df_nogeo,method,scaling,display_progress)
   hc_res$call=sys.call()
   # add geographical data
   hc_res$leafs_geometry = sf::st_geometry(df)
@@ -179,6 +183,7 @@ gtclust_knn=function(df,k=3,method="ward",scaling="raw"){
 #' @param method linkage criterion in ward (default) or average, median
 #' @param scaling default scaling of the features in zscore (default) or raw (i.e. no scaling)
 #' @param adjacency adjacency type to use  "rook" (default) or queen
+#' @param display_progress boolean to set progression bar
 #' @return an \code{\link[stats]{hclust}} like object with additional slots
 #' \describe{
 #'   \item{leafs_geometry}{geometries of the dendrogram leafs as an sfc list}
@@ -187,7 +192,7 @@ gtclust_knn=function(df,k=3,method="ward",scaling="raw"){
 #'   \item{centers}{The protoypes of each tree nodes}
 #' }
 #' @export
-gtclust_poly=function(df,method="ward",adjacency="rook",scaling="raw"){
+gtclust_poly=function(df,method="ward",adjacency="rook",scaling="raw",display_progress=FALSE){
   
   if(!methods::is(df,"sf")){
     stop("The dataset must be an sf data.frame.",call. = FALSE)
@@ -208,7 +213,7 @@ gtclust_poly=function(df,method="ward",adjacency="rook",scaling="raw"){
     nb = sf::st_relate(df,df, pattern = "F***T****")
   }
   class(nb)="list"
-  hc_res=gtclust_graph(nb,df_nogeo,method,scaling)
+  hc_res=gtclust_graph(nb,df_nogeo,method,scaling,display_progress)
   hc_res$call=sys.call()
   # add geographical data
   hc_res$leafs_geometry = sf::st_geometry(df)
@@ -224,7 +229,7 @@ gtclust_poly=function(df,method="ward",adjacency="rook",scaling="raw"){
 #' @param df an \code{\link[sf]{sf}} data.frame with polygons like features
 #' @param method linkage criterion in ward (default) or average, median
 #' @param scaling default scaling of the features in zscore (default) or raw (i.e. no scaling)
-#' @param adjacency adjacency type to use  "rook" (default) or queen
+#' @param display_progress boolean to set progression bar
 #' @return an \code{\link[stats]{hclust}} like object with additional slots
 #' \describe{
 #'   \item{leafs_geometry}{geometries of the dendrogram leafs as an sfc list}
@@ -233,7 +238,7 @@ gtclust_poly=function(df,method="ward",adjacency="rook",scaling="raw"){
 #'   \item{centers}{The protoypes of each tree nodes}
 #' }
 #' @export
-gtclust_lines=function(df,method="ward",scaling="raw"){
+gtclust_lines=function(df,method="ward",scaling="raw",display_progress=FALSE){
   
   if(!methods::is(df,"sf")){
     stop("The dataset must be an sf data.frame.",call. = FALSE)
@@ -251,7 +256,7 @@ gtclust_lines=function(df,method="ward",scaling="raw"){
   
   nb = sf::st_relate(df,df, pattern = "F***T****")
   class(nb)="list"
-  hc_res=gtclust_graph(nb,df_nogeo,method,scaling)
+  hc_res=gtclust_graph(nb,df_nogeo,method,scaling,display_progress)
   hc_res$call=sys.call()
   # add geographical data
   hc_res$leafs_geometry = sf::st_geometry(df)
@@ -271,13 +276,14 @@ gtclust_lines=function(df,method="ward",scaling="raw"){
 #' @param df a data.frame with numeric columns
 #' @param method linkage criterion in ward (default) or average, median
 #' @param scaling default scaling of the features in zscore or raw (i.e. no scaling, the default)
+#' @param display_progress boolean to set progression bar
 #' @return an \code{\link[stats]{hclust}} like object with additional slots
 #' \describe{
 #'   \item{data}{The numeric data (eventually scaled) used for the clustering}
 #'   \item{centers}{The protoypes of each tree nodes}
 #' }
 #' @export
-gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
+gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw",display_progress=FALSE){
   
   
   if(is.character(method) && !(method %in% c("ward","centroid","median","chisq","bayes_mom","bayes_dgmm","bayes_dirichlet"))){
@@ -330,16 +336,26 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
   }
   
   nb_c = lapply(adjacencies_list,\(nei){nei-1})
+  
+  
+  # check for muliple components
+  G=igraph::graph_from_adj_list(adjacencies_list)
+  comp=igraph::components(G)
+  if(comp$no>1){
+    stop("The graph is not connected, several components found.",call. = FALSE)
+  }
   # run the algorithm
   if(method$method %in% c("ward","centroid","median","chisq")){
-    res=hclustcc_cpp(nb_c,df_scaled,method)
-    
+    res=hclustcc_cpp(nb_c,df_scaled,method,display_progress)
+    # convert merge mat in hclust format
+    V = nrow(res$data);
+    merge_mat = apply(res$merge,2,function(col){ifelse(col<V,-(col+1),col-V+1)})
     # format the results in hclust form
-    hc_res = list(merge=res$merge,
+    hc_res = list(merge=merge_mat,
                   Ll = res$Ll,
-                  height=compute_height(-res$Ll),
+                  height=compute_height(res$Ll),
                   Queue_size=res$queue_size,
-                  order=order_tree(res$merge,nrow(res$merge)),
+                  order=order_tree(merge_mat,nrow(res$merge)),
                   labels=(rownames(df)),
                   call=sys.call(),
                   method=method$method,
@@ -349,7 +365,7 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
                   adjacencies_list=adjacencies_list,
                   centers=res$centers)
   }else{
-    res=bayesian_hclustcc_cpp(nb_c,df_scaled,method)
+    res=bayesian_hclustcc_cpp(nb_c,df_scaled,method,display_progress,method$approx)
     
     # complete inter prior with linear slope if needed
     miss_prior = c(res$PriorInter[-length(res$PriorInter)]==0,FALSE)
@@ -360,10 +376,10 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
     # compute the spanning tree prior term
     ptree = (res$PriorInter+res$PriorIntra-res$PriorInter[1])
     Llf = res$Ll + ptree +res$PriorK;
-    # format the results in hclust form
-    V = nrow(res$data);
     # convert merge mat in hclust format
+    V = nrow(res$data);
     merge_mat = apply(res$merge,2,function(col){ifelse(col<V,-(col+1),col-V+1)})
+    # format the results in hclust form
     hc_res = list(merge=merge_mat,
                   Ll = -Llf,
                   height=compute_height(-Llf),
@@ -400,10 +416,10 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw"){
 #' @export
 geocutree=function(tree,k = NULL, h= NULL){
   if(!methods::is(tree,"geoclust")){
-    stop("geocutree only accepts gtclust objects.")
+    stop("geocutree only accepts gtclust objects.",call. = FALSE)
   }
   if(is.null(k) && is.null(h)){
-    stop("At least one of k or h must be specified, k overrides h if both are given.")
+    stop("At least one of k or h must be specified, k overrides h if both are given.",call. = FALSE)
   }
   N=nrow(tree$merge)+1
   if(!is.null(h) & is.null(k)){
@@ -531,8 +547,8 @@ gtmethod_chisq = function(){
 #' @param beta prior parameters for the dirichlet distribution 
 #' @describeIn gtmethod bayesian mixture of multinomials
 #' @export
-gtmethod_bayes_mom = function(beta = 1){
-  structure(list(method = "bayes_mom",beta = beta), 
+gtmethod_bayes_mom = function(beta = 1,approx=FALSE){
+  structure(list(method = "bayes_mom",beta = beta,approx=approx), 
             class = c("gtmethod","bayesian_gtmethod"))
 }
 
@@ -542,16 +558,16 @@ gtmethod_bayes_mom = function(beta = 1){
 #' @param mu Prior for the means (vector of size D), (default to NaN, in this case mu will be estimated from data as the mean of X)
 #' @describeIn gtmethod bayesian diagonal gaussian mixture model
 #' @export
-gtmethod_bayes_dgmm = function(tau = 0.01, kappa = 1, beta = NaN, mu = as.matrix(NaN)){
-  structure(list(method = "bayes_dgmm",tau=tau,kappa=kappa,beta = beta,mu=mu), 
+gtmethod_bayes_dgmm = function(tau = 0.01, kappa = 1, beta = NaN, mu = as.matrix(NaN),approx=FALSE){
+  structure(list(method = "bayes_dgmm",tau=tau,kappa=kappa,beta = beta,mu=mu,approx=approx), 
             class = c("gtmethod","bayesian_gtmethod"))
 }
 
 #' @param lambda Prior parameter (inverse variance), (default 0.01)
 #' @describeIn gtmethod bayesian diagonal gaussian mixture model
 #' @export
-gtmethod_bayes_dirichlet = function(lambda = as.matrix(NaN)){
-  structure(list(method = "bayes_dirichlet",lambda=lambda), 
+gtmethod_bayes_dirichlet = function(lambda = as.matrix(NaN),approx=FALSE){
+  structure(list(method = "bayes_dirichlet",lambda=lambda,approx=approx), 
             class = c("gtmethod","bayesian_gtmethod"))
 }
 
@@ -576,23 +592,17 @@ plot.gtclust=function(x,y=NULL,nb_max_leafs=500,...){
   cluster_sizes = sapply(small_tree$members,length)
   dend_data$labels$size=cluster_sizes[small_tree$order]
   
-  if(tree$k.relaxed>1){
-    ymax =tree$height[nrow(tree$data)-tree$k.relaxed]
-  }else{
-    ymax=max(small_tree$height)
-  }
 
-  segs_noconstr = dend_data$segments[dend_data$segments$y>ymax,]
-  segs_constr = dend_data$segments[dend_data$segments$y<=ymax,]
+
+  segs_constr = dend_data$segments
+  
   ggplot2::ggplot() + 
-    ggplot2::geom_segment(data=segs_constr,ggplot2::aes_(x =~ x, y  =~ y, xend =~ xend, yend =~ yend,linetype="constrained"),size=0.3)+
-    ggplot2::geom_segment(data=segs_noconstr,ggplot2::aes_(x =~ x, y =~ y, xend =~ xend, yend =~ yend,linetype="relaxed merge"),color="#aeaeae",size=0.5,linetype="dotted")+
+    ggplot2::geom_segment(data=segs_constr,ggplot2::aes_(x =~ x, y  =~ y, xend =~ xend, yend =~ yend),size=0.3)+
     ggplot2::geom_point(data = dend_data$labels, ggplot2::aes_(x=~x, y=~y-0.03*max(small_tree$height), size=~size))+
     ggplot2::theme_bw()+
     ggplot2::scale_x_continuous("",breaks=c())+
-    ggplot2::scale_linetype_manual(values=c("relaxed"="dotted","constrained"="solid"))+
     ggplot2::scale_y_continuous(expression(-log(alpha)),n.breaks = 8)+
-    ggplot2::guides(linetype=ggplot2::guide_legend("Merge type:"),size=ggplot2::guide_legend("Branch size:"))+
+    ggplot2::guides(size=ggplot2::guide_legend("Branch size:"))+
     ggplot2::scale_size(breaks=round(seq(max(cluster_sizes)/3,max(cluster_sizes),length.out=3)/10)*10,limits=c(0,max(cluster_sizes)),range=c(0,4))+
     ggplot2::ggtitle(paste0(tree$method,": ",nb_max_leafs," clusters"))+
     ggplot2::theme(

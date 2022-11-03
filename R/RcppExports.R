@@ -37,11 +37,11 @@ dirichlet_evidence <- function(n, lambda, lpi, pi) {
     .Call(`_gtclust_dirichlet_evidence`, n, lambda, lpi, pi)
 }
 
-hclustcc_cpp <- function(nb, X, method_obj) {
-    .Call(`_gtclust_hclustcc_cpp`, nb, X, method_obj)
+hclustcc_cpp <- function(nb, X, method_obj, display_progress) {
+    .Call(`_gtclust_hclustcc_cpp`, nb, X, method_obj, display_progress)
 }
 
-bayesian_hclustcc_cpp <- function(nb, X, method_obj) {
-    .Call(`_gtclust_bayesian_hclustcc_cpp`, nb, X, method_obj)
+bayesian_hclustcc_cpp <- function(nb, X, method_obj, display_progress, approx) {
+    .Call(`_gtclust_bayesian_hclustcc_cpp`, nb, X, method_obj, display_progress, approx)
 }
 

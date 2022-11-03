@@ -16,9 +16,11 @@ Imports:
     ggplot2,
     maptree,
     ggdendro,
-    Matrix
+    Matrix,
+    igraph
 LinkingTo: 
-    Rcpp
+    Rcpp,
+    RcppProgress
 Depends: 
     R (>= 2.10)
 LazyData: true

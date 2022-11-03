@@ -137,28 +137,31 @@ BEGIN_RCPP
 END_RCPP
 }
 // hclustcc_cpp
-List hclustcc_cpp(const List nb, const NumericMatrix& X, List method_obj);
-RcppExport SEXP _gtclust_hclustcc_cpp(SEXP nbSEXP, SEXP XSEXP, SEXP method_objSEXP) {
+List hclustcc_cpp(const List nb, const NumericMatrix& X, List method_obj, bool display_progress);
+RcppExport SEXP _gtclust_hclustcc_cpp(SEXP nbSEXP, SEXP XSEXP, SEXP method_objSEXP, SEXP display_progressSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const List >::type nb(nbSEXP);
     Rcpp::traits::input_parameter< const NumericMatrix& >::type X(XSEXP);
     Rcpp::traits::input_parameter< List >::type method_obj(method_objSEXP);
-    rcpp_result_gen = Rcpp::wrap(hclustcc_cpp(nb, X, method_obj));
+    Rcpp::traits::input_parameter< bool >::type display_progress(display_progressSEXP);
+    rcpp_result_gen = Rcpp::wrap(hclustcc_cpp(nb, X, method_obj, display_progress));
     return rcpp_result_gen;
 END_RCPP
 }
 // bayesian_hclustcc_cpp
-List bayesian_hclustcc_cpp(const List nb, const NumericMatrix& X, List method_obj);
-RcppExport SEXP _gtclust_bayesian_hclustcc_cpp(SEXP nbSEXP, SEXP XSEXP, SEXP method_objSEXP) {
+List bayesian_hclustcc_cpp(const List nb, const NumericMatrix& X, List method_obj, bool display_progress, bool approx);
+RcppExport SEXP _gtclust_bayesian_hclustcc_cpp(SEXP nbSEXP, SEXP XSEXP, SEXP method_objSEXP, SEXP display_progressSEXP, SEXP approxSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const List >::type nb(nbSEXP);
     Rcpp::traits::input_parameter< const NumericMatrix& >::type X(XSEXP);
     Rcpp::traits::input_parameter< List >::type method_obj(method_objSEXP);
-    rcpp_result_gen = Rcpp::wrap(bayesian_hclustcc_cpp(nb, X, method_obj));
+    Rcpp::traits::input_parameter< bool >::type display_progress(display_progressSEXP);
+    Rcpp::traits::input_parameter< bool >::type approx(approxSEXP);
+    rcpp_result_gen = Rcpp::wrap(bayesian_hclustcc_cpp(nb, X, method_obj, display_progress, approx));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -173,8 +176,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_gtclust_H_ldirpost", (DL_FUNC) &_gtclust_H_ldirpost, 4},
     {"_gtclust_ldirpost_norm", (DL_FUNC) &_gtclust_ldirpost_norm, 4},
     {"_gtclust_dirichlet_evidence", (DL_FUNC) &_gtclust_dirichlet_evidence, 4},
-    {"_gtclust_hclustcc_cpp", (DL_FUNC) &_gtclust_hclustcc_cpp, 3},
-    {"_gtclust_bayesian_hclustcc_cpp", (DL_FUNC) &_gtclust_bayesian_hclustcc_cpp, 3},
+    {"_gtclust_hclustcc_cpp", (DL_FUNC) &_gtclust_hclustcc_cpp, 4},
+    {"_gtclust_bayesian_hclustcc_cpp", (DL_FUNC) &_gtclust_bayesian_hclustcc_cpp, 5},
     {NULL, NULL, 0}
 };
 
