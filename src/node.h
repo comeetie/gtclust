@@ -49,6 +49,16 @@ struct multiedge
   
 };
 
+struct subfactor
+{
+  int * cols;
+  int * nz;
+  int * p;
+  int * i;
+  double * x;
+  int size;
+};
+
 
 struct bayesian_node : abstract_node
 {

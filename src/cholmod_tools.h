@@ -3,9 +3,30 @@
 
 #include "SuiteSparse_config/SuiteSparse_config.h"
 #include "CHOLMOD/Include/cholmod.h"
+#include "node.h"
 #include <Rcpp.h>
 using namespace Rcpp;
 
+void print_factor(cholmod_factor * L){
+  Rcout << "is ll :" << L->is_ll << std::endl;
+  Rcout << "is monotonic :" << L->is_monotonic << std::endl;
+  Rcout << "is super :" << L->is_super << std::endl;
+  Rcout << "IX: " ;
+  for(int v=0;v<L->nzmax;v++){
+    Rcout << "(" << ((int*)L->i)[v] << ", " << ((double*)L->x)[v] << ")";
+  }
+  Rcout << std::endl;
+  Rcout << "PNZ: ";
+  for(int v=0;v<L->n;v++){
+    Rcout << "(" << ((int*)L->p)[v] << ", " << ((int*)L->nz)[v] << ")";
+  }
+  Rcout << std::endl;
+  Rcout << "NP: ";
+  for(int v=0;v<(L->n+2);v++){
+    Rcout << "(" << ((int*)L->prev)[v] << ", " << ((int*)L->next)[v] << ")";
+  }
+  Rcout << std::endl;
+}
 
 int * cholmod_tools_iPerm(int arr[], int size) {
   
@@ -44,8 +65,10 @@ double cholmod_tools_logdet_subset_delta(cholmod_factor * L,const std::set<int,s
         logdet_delta+= log(val)-log(Lintra_diag[r]);
         Lintra_diag[r]=val;
       }else{
+        logdet_delta-=log(Lintra_diag[r]);
+        Lintra_diag[r]=1;
         Rcout << "warning:" << r << " : " << val << std::endl;
-        stop("Error: Cholevshy factorization update failed");
+        //stop("Error: Cholevshy factorization update failed");
       }
     }else{
       break;
@@ -65,8 +88,9 @@ double cholmod_tools_logdet_subset_delta_nochange(cholmod_factor * L,const std::
       if(val>0){
         logdet_delta+= log(val)-log(Lintra_diag[r]);
       }else{
+        logdet_delta-= log(Lintra_diag[r]);
         Rcout << "warning:" << r << " : " << val << std::endl;
-        stop("Error: Cholevshy factorization update failed");
+        //stop("Error: Cholevshy factorization update failed");
       }
     }else{
       break;
@@ -233,6 +257,121 @@ void cholmod_tools_Lup_intra(cholmod_factor * F,int pivot, int old_pivot,std::se
   
 }
 
+
+subfactor * cholmod_tools_save_subfactor(cholmod_factor * F,const std::set<int,std::greater<int>> & node_g_intra_nodes,int iming,const std::set<int,std::greater<int>> & node_h_intra_nodes, int iminh,cholmod_common * com){
+  
+  // get the sizes
+  int tot_nz=0;
+  int tot_col=0;
+  for(auto it=node_g_intra_nodes.begin();it!=node_g_intra_nodes.end();++it){
+    int ic =*it;
+    if(ic>=iming){
+      tot_nz += ((int*)F->nz)[ic];
+      tot_col++;
+    }else{
+      break;
+    }
+  }
+  for(auto it=node_h_intra_nodes.begin();it!=node_h_intra_nodes.end();++it){
+    int ic =*it;
+    if(ic>=iminh){
+      tot_nz += ((int*)F->nz)[ic];
+      tot_col++;
+    }else{
+      break;
+    }
+  }
+  //Rcout << "tot_col :" << tot_col << std::endl;
+  //Rcout << "tot_nz :" << tot_nz << std::endl;
+  int  * il = (int*)malloc((tot_nz+1)*sizeof(int));
+  double  * xl = (double*)malloc((tot_nz+1)*sizeof(double));
+  int  * p = (int*)malloc((tot_col+1)*sizeof(int));
+  int * cols = (int*)malloc((tot_col+1)*sizeof(int));
+  int * nbz = (int*)malloc((tot_col+1)*sizeof(int));
+  
+  // int  il[50000];
+  // double  xl[50000];
+  // int  p[5000];
+  // int cols[5000];
+  // int nbz[5000];
+  int ival=0;
+  int ccol=0;
+  for(auto it=node_g_intra_nodes.begin();it!=node_g_intra_nodes.end();++it){
+    int ic = *it;
+    cols[ccol] = ic;
+    p[ccol]= ival;
+    
+    if(ic>=iming){
+      // copy all col values
+      int pd = ((int*)F->p)[ic];
+      int cnz = ((int*)F->nz)[ic];
+      nbz[ccol]= cnz;
+      for (int i=pd;i<pd+cnz;++i){
+        // Rcout << ival << " : (" << ((int*)F->i)[i] << "," << ((double*)F->x)[i] << std::endl;
+        il[ival] = ((int*)F->i)[i];
+        xl[ival] = ((double*)F->x)[i];
+        ival++;
+      }
+      ccol++;
+    }else{
+      break;
+    }
+  }
+  
+  for(auto it=node_h_intra_nodes.begin();it!=node_h_intra_nodes.end();++it){
+    int ic = *it;
+    cols[ccol] = ic;
+    p[ccol]= ival;
+    if(ic>=iminh){
+      // copy all col values
+      int pd = ((int*)F->p)[ic];
+      int cnz = ((int*)F->nz)[ic];
+      nbz[ccol]= cnz;
+      for (int i=pd;i<pd+cnz;++i){
+        il[ival] = ((int*)F->i)[i];
+        xl[ival] = ((double*)F->x)[i];
+        ival++;
+      }
+      ccol++;
+    }else{
+      break;
+    }
+    
+  }
+  
+  subfactor * subfact = (subfactor*)malloc( sizeof(subfactor) );
+  subfact->size = ccol;
+  subfact->i=il;
+  subfact->x=xl;
+  subfact->nz=nbz;
+  subfact->cols=cols;
+  subfact->p=p;
+  return(subfact);
+  
+}
+
+void cholmod_tools_restore_subfactor(cholmod_factor * F,subfactor * subF){
+  for(int i=0;i<subF->size;++i){
+    int istart = subF->p[i];
+    int nbz = subF->nz[i];
+    int ccol = subF->cols[i];
+    //Rcout << "istart :" << istart << ",nbz " << nbz << ", ccol " << ccol << std::endl; 
+    ((int *)F->nz)[ccol]=nbz;
+    //Rcout << "change nz" << std::endl;
+    int istartF = ((int *)F->p)[ccol];
+    //Rcout << "istartF : " << istartF << std::endl;
+    
+    // WARNING CHECK NEEDED
+    // ((int *)F->nz)[ccol]>nbz else resize needed ?
+    
+    for(int iv=0;iv<nbz;++iv){
+      ((int*)F->i)[istartF+iv]=subF->i[istart+iv];
+      ((double*)F->x)[istartF+iv]=subF->x[istart+iv];
+    }
+  }
+}
+
+
 double cholmod_tools_cutcost(cholmod_factor * F,double Lintra_diag[],int pivot,int old_pivot,std::set<int> old_pivot_edges,const std::vector<std::pair<int, int>> * cutset,int * permutation,const std::set<int,std::greater<int>> & node_g_intra_nodes,const std::set<int,std::greater<int>> & node_h_intra_nodes, cholmod_common * com){
   
   //double lognbtreeS =  cholmod_tools_logdet_subset(F,node_g_intra_nodes)+cholmod_tools_logdet_subset(F,node_h_intra_nodes);
@@ -259,6 +398,12 @@ double cholmod_tools_cutcost(cholmod_factor * F,double Lintra_diag[],int pivot,i
     cutset_loc[i] = std::make_pair(permutation[it->first],permutation[it->second]);
     i++;
   }
+  
+  
+  subfactor * subfact = cholmod_tools_save_subfactor(F,node_g_intra_nodes,iming,node_h_intra_nodes,iminh,com);
+  //Rcout << "SAVE" << std::endl;
+  //print_factor(F);
+  
   //double lognbtree=0;
   cholmod_sparse* links1 = cholmod_tools_linkstocol(F->n,pivot,old_pivot,&cutset_loc,com);
   cholmod_updown(true,links1,F,com);
@@ -266,6 +411,9 @@ double cholmod_tools_cutcost(cholmod_factor * F,double Lintra_diag[],int pivot,i
 
   cholmod_sparse * col1 = cholmod_tools_oldpivotcol(F->n,pivot,old_pivot,old_pivot_edges,&cutset_loc,com);
   cholmod_rowadd(old_pivot,col1,F,com);
+  //Rcout << "UP" << std::endl;
+  // print_factor(F);
+  // Rcout << F->is_monotonic << std::endl;
   // // computelogdet
   double delta_lnbtg = cholmod_tools_logdet_subset_delta_nochange(F,node_g_intra_nodes,Lintra_diag,iming);
   double delta_lnbth = cholmod_tools_logdet_subset_delta_nochange(F,node_h_intra_nodes,Lintra_diag,iminh);
@@ -275,13 +423,18 @@ double cholmod_tools_cutcost(cholmod_factor * F,double Lintra_diag[],int pivot,i
   // Rcout << "----- delta 2 : " << lognbtreeT-lognbtreeS << std::endl;
   // delta= lognbtreeT-lognbtreeS;
   // revert the changes
-  cholmod_rowdel(old_pivot,NULL,F,com);
+  cholmod_tools_restore_subfactor(F,subfact);
+  //Rcout << "RESTORE" << std::endl;
+  //print_factor(F);
+  //cholmod_rowdel(old_pivot,NULL,F,com);
   cholmod_free_sparse (&col1, com);
-  cholmod_updown(false,links1,F,com);
+  //cholmod_updown(false,links1,F,com);
   cholmod_free_sparse (&links1, com);
   
   return (delta) ;
 }
+
+
 
 
 
@@ -412,26 +565,7 @@ cholmod_sparse * inter_to_sparse(std::vector<bayesian_node> graph,int V,int nbli
 }
 
 
-// void print_factor(cholmod_factor * L){
-//   Rcout << "is ll :" << L->is_ll << std::endl;
-//   Rcout << "is monotonic :" << L->is_monotonic << std::endl;
-//   Rcout << "is super :" << L->is_super << std::endl;
-//   Rcout << "IX: " ;
-//   for(int v=0;v<L->nzmax;v++){
-//     Rcout << "(" << ((int*)L->i)[v] << ", " << ((double*)L->x)[v] << ")";
-//   }
-//   Rcout << std::endl;
-//   Rcout << "PNZ: ";
-//   for(int v=0;v<L->n;v++){
-//     Rcout << "(" << ((int*)L->p)[v] << ", " << ((int*)L->nz)[v] << ")";
-//   }
-//   Rcout << std::endl;
-//   Rcout << "NP: ";
-//   for(int v=0;v<(L->n+2);v++){
-//     Rcout << "(" << ((int*)L->prev)[v] << ", " << ((int*)L->next)[v] << ")";
-//   }
-//   Rcout << std::endl;
-// }
+
 // 
 // 
 // void print_sparse(cholmod_sparse * S){

@@ -498,6 +498,8 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
       }
     }
     Rcout << "Time elapsed (cutset find origine): " << t1.elapsed() << " seconds" << std::endl;
+    
+
     // check for bridge merge in this case we may optimize the update of merge cost
     bool bridge_merge = false;
     if(cutset.size()==1){
