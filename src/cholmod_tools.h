@@ -67,7 +67,7 @@ double cholmod_tools_logdet_subset_delta(cholmod_factor * L,const std::set<int,s
       }else{
         logdet_delta-=log(Lintra_diag[r]);
         Lintra_diag[r]=1;
-        Rcout << "warning:" << r << " : " << val << std::endl;
+        //Rcout << "warning:" << r << " : " << val << std::endl;
         //stop("Error: Cholevshy factorization update failed");
       }
     }else{
@@ -89,7 +89,7 @@ double cholmod_tools_logdet_subset_delta_nochange(cholmod_factor * L,const std::
         logdet_delta+= log(val)-log(Lintra_diag[r]);
       }else{
         logdet_delta-= log(Lintra_diag[r]);
-        Rcout << "warning:" << r << " : " << val << std::endl;
+        //Rcout << "warning:" << r << " : " << val << std::endl;
         //stop("Error: Cholevshy factorization update failed");
       }
     }else{
@@ -350,7 +350,7 @@ subfactor * cholmod_tools_save_subfactor(cholmod_factor * F,const std::set<int,s
   
 }
 
-void cholmod_tools_restore_subfactor(cholmod_factor * F,subfactor * subF){
+void cholmod_tools_restore_subfactor(cholmod_factor * F,subfactor * subF,cholmod_common * com){
   for(int i=0;i<subF->size;++i){
     int istart = subF->p[i];
     int nbz = subF->nz[i];
@@ -360,10 +360,21 @@ void cholmod_tools_restore_subfactor(cholmod_factor * F,subfactor * subF){
     //Rcout << "change nz" << std::endl;
     int istartF = ((int *)F->p)[ccol];
     //Rcout << "istartF : " << istartF << std::endl;
-    
-    // WARNING CHECK NEEDED
-    // ((int *)F->nz)[ccol]>nbz else resize needed ?
-    
+    // WARNING SIZE CHECK NEEDED
+    int next_col = ((int *)F->next)[ccol];
+    int available_space;
+    if(next_col!=-1){
+      available_space = ((int *)F->p)[next_col]-istartF;
+    }else{
+      available_space = F->nzmax-istart;
+    }
+    //Rcout << "NBZ : " << nbz << ", SPACE : " << available_space << std::endl;
+    if(nbz>=available_space){
+      Rcout << "SPACE : " << nbz << "/" << available_space << std::endl;
+      // ((int *)F->nz)[ccol]>nbz else resize needed ?
+      cholmod_reallocate_column(ccol,nbz+1,F,com);
+      istartF = ((int *)F->p)[ccol];
+    }
     for(int iv=0;iv<nbz;++iv){
       ((int*)F->i)[istartF+iv]=subF->i[istart+iv];
       ((double*)F->x)[istartF+iv]=subF->x[istart+iv];
@@ -423,7 +434,7 @@ double cholmod_tools_cutcost(cholmod_factor * F,double Lintra_diag[],int pivot,i
   // Rcout << "----- delta 2 : " << lognbtreeT-lognbtreeS << std::endl;
   // delta= lognbtreeT-lognbtreeS;
   // revert the changes
-  cholmod_tools_restore_subfactor(F,subfact);
+  cholmod_tools_restore_subfactor(F,subfact,com);
   //Rcout << "RESTORE" << std::endl;
   //print_factor(F);
   //cholmod_rowdel(old_pivot,NULL,F,com);

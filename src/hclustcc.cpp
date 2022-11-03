@@ -477,7 +477,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     // get the cutset g,h
     std::vector<std::pair<int, int>> cutset = node_g.neibs.at(h).edges;
     
-    Timer t1;
+    //Timer t1;
     // get the limits of elimination tree for logdet delta computations
     int iminh = node_h.intra_pivot;
     int iming = std::numeric_limits<int>::max();
@@ -497,7 +497,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
         iminh=ih;
       }
     }
-    Rcout << "Time elapsed (cutset find origine): " << t1.elapsed() << " seconds" << std::endl;
+    //Rcout << "Time elapsed (cutset find origine): " << t1.elapsed() << " seconds" << std::endl;
     
 
     // check for bridge merge in this case we may optimize the update of merge cost
@@ -508,9 +508,9 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
     }
 
     // build cholevky factorization of new node
-    Timer t2;
+    //Timer t2;
     cholmod_tools_Lup_intra(Lintra,node_g.intra_pivot,node_h.intra_pivot,node_h.intra_pivot_edges,&cutset,pp,&c);
-    Rcout << "Time elapsed (update): " << t2.elapsed() << " seconds" << std::endl;
+    //Rcout << "Time elapsed (update): " << t2.elapsed() << " seconds" << std::endl;
     // update remaining pivot edges
     new_node.intra_pivot = node_g.intra_pivot;
     new_node.intra_pivot_edges =  cholmod_tools_pivotedgesup_intra(V,node_g.intra_pivot,node_g.intra_pivot_edges,&cutset,pp);
@@ -537,7 +537,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj)
       }
     }
 
-    Rcout << "lognbtree - intra :" << new_node.lognbtree << std::endl;
+    //Rcout << "lognbtree - intra :" << new_node.lognbtree << std::endl;
     PriorIntra[imerge+1] = PriorIntra[imerge];
     PriorIntra[imerge+1]+= new_node.lognbtree-node_g.lognbtree-node_h.lognbtree;
     
