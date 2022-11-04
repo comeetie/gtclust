@@ -4,7 +4,13 @@
 \alias{gtclust_poly}
 \title{Hierarchical clustering with contiguity constraints between polygons}
 \usage{
-gtclust_poly(df, method = "ward", adjacency = "rook", scaling = "raw")
+gtclust_poly(
+  df,
+  method = "ward",
+  adjacency = "rook",
+  scaling = "raw",
+  display_progress = FALSE
+)
 }
 \arguments{
 \item{df}{an \code{\link[sf]{sf}} data.frame with polygons like features}
@@ -14,6 +20,8 @@ gtclust_poly(df, method = "ward", adjacency = "rook", scaling = "raw")
 \item{adjacency}{adjacency type to use  "rook" (default) or queen}
 
 \item{scaling}{default scaling of the features in zscore (default) or raw (i.e. no scaling)}
+
+\item{display_progress}{boolean to set progression bar}
 }
 \value{
 an \code{\link[stats]{hclust}} like object with additional slots

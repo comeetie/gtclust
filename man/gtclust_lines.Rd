@@ -4,7 +4,7 @@
 \alias{gtclust_lines}
 \title{Hierarchical clustering with contiguity constraints between lines}
 \usage{
-gtclust_lines(df, method = "ward", scaling = "raw")
+gtclust_lines(df, method = "ward", scaling = "raw", display_progress = FALSE)
 }
 \arguments{
 \item{df}{an \code{\link[sf]{sf}} data.frame with polygons like features}
@@ -13,7 +13,7 @@ gtclust_lines(df, method = "ward", scaling = "raw")
 
 \item{scaling}{default scaling of the features in zscore (default) or raw (i.e. no scaling)}
 
-\item{adjacency}{adjacency type to use  "rook" (default) or queen}
+\item{display_progress}{boolean to set progression bar}
 }
 \value{
 an \code{\link[stats]{hclust}} like object with additional slots

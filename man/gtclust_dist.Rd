@@ -4,7 +4,13 @@
 \alias{gtclust_dist}
 \title{Hierarchical clustering with contiguity constraints for point data with distance threshold links}
 \usage{
-gtclust_dist(df, epsilon, method = "ward", scaling = "raw")
+gtclust_dist(
+  df,
+  epsilon,
+  method = "ward",
+  scaling = "raw",
+  display_progress = FALSE
+)
 }
 \arguments{
 \item{df}{an \code{\link[sf]{sf}} data.frame with polygons like features}
@@ -14,6 +20,8 @@ gtclust_dist(df, epsilon, method = "ward", scaling = "raw")
 \item{method}{linkage criterion in ward (default) or average, median}
 
 \item{scaling}{default scaling of the features in zscore (default) or raw (i.e. no scaling)}
+
+\item{display_progress}{boolean to set progression bar}
 }
 \value{
 an \code{\link[stats]{hclust}} like object with additional slots

@@ -4,7 +4,13 @@
 \alias{gtclust_graph}
 \title{Hierarchical clustering with contiguity constraints}
 \usage{
-gtclust_graph(adjacencies_list, df, method = "ward", scaling = "raw")
+gtclust_graph(
+  adjacencies_list,
+  df,
+  method = "ward",
+  scaling = "raw",
+  display_progress = FALSE
+)
 }
 \arguments{
 \item{adjacencies_list}{graph describing the contiguity between the rows of df as a list of adjacencies}
@@ -14,6 +20,8 @@ gtclust_graph(adjacencies_list, df, method = "ward", scaling = "raw")
 \item{method}{linkage criterion in ward (default) or average, median}
 
 \item{scaling}{default scaling of the features in zscore or raw (i.e. no scaling, the default)}
+
+\item{display_progress}{boolean to set progression bar}
 }
 \value{
 an \code{\link[stats]{hclust}} like object with additional slots

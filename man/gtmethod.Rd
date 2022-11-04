@@ -18,11 +18,17 @@ gtmethod_median()
 
 gtmethod_chisq()
 
-gtmethod_bayes_mom(beta = 1)
+gtmethod_bayes_mom(beta = 1, approx = FALSE)
 
-gtmethod_bayes_dgmm(tau = 0.01, kappa = 1, beta = NaN, mu = as.matrix(NaN))
+gtmethod_bayes_dgmm(
+  tau = 0.01,
+  kappa = 1,
+  beta = NaN,
+  mu = as.matrix(NaN),
+  approx = FALSE
+)
 
-gtmethod_bayes_dirichlet(lambda = as.matrix(NaN))
+gtmethod_bayes_dirichlet(lambda = as.matrix(NaN), approx = FALSE)
 }
 \arguments{
 \item{beta}{Prior parameter (gamma rate), (default to NaN, in this case beta will be estimated from data as 0.1 time the mean of X columns variances)}
