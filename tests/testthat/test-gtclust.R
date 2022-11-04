@@ -10,7 +10,7 @@ test_that("simple ward", {
   gthc <- gtclust::gtclust_graph(nb,X,method = "ward")
   hc   <- hclust(0.5*dist(X)^2,method="ward.D")
   testthat::expect_equal(hc$merge,gthc$merge)
-  testthat::expect_equal(hc$height,gthc$Ll,tolerance = 10^-6)
+  testthat::expect_equal(hc$height,gthc$height,tolerance = 10^-4)
 })
 
 
@@ -135,7 +135,7 @@ test_that("ward polygons queen/rook", {
   geoagg  <- geocutree(geohc,2)
   testthat::expect_equal(nrow(geoagg),2)
   testthat::expect_equal(sf::st_equals(geoagg$geometry[1],sf::st_union(df.sf[cutree(geohc,2)==1,]))[[1]],1)
-  geoaggX <- as.matrix(geoagg[,-1] |> sf::st_drop_geometry())
+  geoaggX <- as.matrix(geoagg[,-c(1,2)] |> sf::st_drop_geometry())
   cm <- colMeans(X[cutree(geohc,2)==1,])
   names(cm) <- colnames(geoaggX)
   testthat::expect_equal(geoaggX[1,],cm)
@@ -151,7 +151,7 @@ test_that("ward polygons queen/rook", {
   geoagg <- geocutree(geohc,2)
   testthat::expect_equal(nrow(geoagg),2)
   testthat::expect_equal(sf::st_equals(geoagg$geometry[1],sf::st_union(df.sf[cutree(geohc,2)==1,]))[[1]],1)
-  geoaggX <- as.matrix(geoagg[,-1] |> sf::st_drop_geometry())
+  geoaggX <- as.matrix(geoagg[,-c(1,2)] |> sf::st_drop_geometry())
   cm <- colMeans(X[cutree(geohc,2)==1,])
   names(cm) <- colnames(geoaggX)
   testthat::expect_equal(geoaggX[1,],cm)
@@ -212,11 +212,25 @@ test_that("bayesian dirichlet", {
   P = rbind(rdirichlet(n,pcounts1),rdirichlet(n,pcounts2),rdirichlet(n,pcounts3),rdirichlet(n,pcounts4))
   
   sol=gtclust_temp(P,method="bayes_dirichlet")
-  clh = cutree(sol,2)
-  cl=(rep(1:2,each=n))
+  clh = cutree(sol,4)
+  cl=(rep(1:4,each=n))
   tcomp=table(cl,clh)
   tcomp
-  testthat::expect_equal((sum(tcomp)-sum(diag(tcomp)))/N,0,tolerance = 10^-2)
+  testthat::expect_equal((sum(tcomp)-sum(diag(tcomp)))/4*n,0,tolerance = 10^-2)
+})
+
+
+test_that("spanning tree prior", {
+  nb=list(c(2,3),c(1,3),c(1,2,4),c(3,5),c(4,6,7),c(5,7),c(5,6))
+  X=matrix(runif(7*2),nrow=7)
+  hc_res_small = gtclust_graph(nb,data.frame(X),method = gtmethod_bayes_dgmm(),scaling = "raw")
+  k_max= 7
+  N=nrow(X)
+  pr=sptree_prior(hc_res_small,k_max)
+  pr$intra_comp=hc_res_small$PriorIntra[N:(N-k_max+1)]
+  pr$inter_comp=hc_res_small$PriorInter[N:(N-k_max+1)]
+  testthat::expect_equal(pr$intra,pr$intra_comp,tolerance=10^-13)
+  testthat::expect_equal(pr$inter,pr$inter_comp,tolerance=10^-13)
 })
 
 

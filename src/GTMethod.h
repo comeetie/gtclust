@@ -41,15 +41,15 @@ namespace GTMethod{
   class ward : public GTMethod {
   public:
     void init(const NumericMatrix& X) {};
-    double dist(node node_g,node node_h) {
-      double w = static_cast< double >(node_g.size*node_h.size)/static_cast< double >(node_g.size+node_h.size);
-      return w*dist_euclidean_squared(node_g.x,node_h.x);
+    double dist(abstract_node * node_g,abstract_node * node_h) {
+      double w = static_cast< double >(node_g->size*node_h->size)/static_cast< double >(node_g->size+node_h->size);
+      return w*dist_euclidean_squared(node_g->x,node_h->x);
     };
-    node merge(int new_id,node node_g,node node_h,double height) {
+    node merge(int new_id,abstract_node * node_g,abstract_node * node_h,double height) {
       node new_node;
       new_node.id = new_id;
-      new_node.x  = (node_g.size*node_g.x + node_h.size*node_h.x)/(node_g.size+node_h.size);
-      new_node.size= node_h.size+node_g.size;
+      new_node.x  = (node_g->size*node_g->x + node_h->size*node_h->x)/(node_g->size+node_h->size);
+      new_node.size= node_h->size+node_g->size;
       new_node.height = height;
       return new_node;
     }

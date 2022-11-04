@@ -354,13 +354,11 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw",display
     hc_res = list(merge=merge_mat,
                   Ll = res$Ll,
                   height=compute_height(res$Ll),
-                  Queue_size=res$queue_size,
                   order=order_tree(merge_mat,nrow(res$merge)),
                   labels=(rownames(df)),
                   call=sys.call(),
                   method=method$method,
                   dist.method="euclidean",
-                  k.relaxed=res$k.relaxed,
                   data=res$data,
                   adjacencies_list=adjacencies_list,
                   centers=res$centers)
@@ -368,7 +366,7 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw",display
     res=bayesian_hclustcc_cpp(nb_c,df_scaled,method,display_progress,method$approx)
     
     # complete inter prior with linear slope if needed
-    miss_prior = c(res$PriorInter[-length(res$PriorInter)]==0,FALSE)
+    miss_prior = is.na(res$PriorInter)
     if(sum(miss_prior)>0){
       nbmiss = max(which(miss_prior))
       res$PriorInter[miss_prior]=seq(res$PriorIntra[length(res$PriorIntra)],res$PriorInter[nbmiss+1],length.out=nbmiss)
@@ -386,13 +384,11 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw",display
                   PriorIntra = res$PriorIntra,
                   PriorInter = res$PriorInter,
                   PriorK = res$PriorK,
-                  Queue_size=res$queue_size,
                   order=order_tree(merge_mat,nrow(res$merge)),
                   labels=(rownames(df)),
                   call=sys.call(),
                   method=method$method,
                   dist.method="euclidean",
-                  k.relaxed=res$k.relaxed,
                   data=res$data,
                   adjacencies_list=adjacencies_list,
                   centers=res$centers)

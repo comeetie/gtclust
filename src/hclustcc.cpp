@@ -138,9 +138,7 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,bool disp
   
   
   int V = X.nrow();
-  bool is_bayesian = method_obj.inherits("bayesian_gtmethod");
-  int k_relaxed = 1;
-  
+
   // compute data statistics needed for priors or distance
   GTMethod::GTMethod * method = init_method(method_obj);
   method->init(X);
@@ -155,11 +153,7 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,bool disp
   std::set<int> active_nodes;
   // current negative loglike
   double Llc = 0;
-  double Pc  = 0;
-  if(is_bayesian){
-    Pc += -lgamma(V+1);
-  }
-  
+
   for(int i=0; i<nb.length(); ++i){
     if(nb[i]!=R_NilValue) {
       NumericVector nbi = as<NumericVector>(nb[i]);
@@ -189,11 +183,8 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,bool disp
   // Lets Merge !
   NumericMatrix merge(V-1,2);
   NumericVector height(V-1);
-  NumericVector queue_size(V-1);
   NumericVector Ll(V);
-  NumericVector Prior(V);
   Ll[0]=Llc;
-  Prior[0]=Pc;
   Progress p(V-1, display_progress);
   for(int imerge=0;imerge<(V-1);imerge++){
     
@@ -201,34 +192,14 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,bool disp
       stop("Error : user interupt.");
     }
     p.increment(); 
-    queue_size[imerge]=priority_queue.size();
-    int K_before = V-imerge; 
+
     int node_id = V+imerge;
     auto best_merge = priority_queue.begin();
     
     
     // deal with isolated regions (no more merge possibles with contiguity constrains)
     if(best_merge==priority_queue.end()){
-      
-      
-      // Relax contiguity constraints to build a complete hierarchy
-      //priority_queue.clear(); // already empty
-      k_relaxed = V-imerge;
-      for(auto it = active_nodes.begin(); it != active_nodes.end(); ++it ) {
-        int i = *it;
-        graph[i].neibs.clear();
-        for(auto it_nei = active_nodes.begin(); it_nei != active_nodes.end(); ++it_nei ){
-          int j = *it_nei;
-          if(i!=j){
-            double d = method->dist(&graph[i],&graph[j]);
-            graph[i].neibs.insert(std::make_pair(j,d));
-            if(i<j){
-              priority_queue.insert(std::make_pair(d,std::make_pair(i,j)));
-            }
-          }
-        }
-      }
-      best_merge = priority_queue.begin();
+        stop("Disconected graph.");  
     }
     
     std::pair<int,int> edge = best_merge->second; 
@@ -239,13 +210,6 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,bool disp
     
     height[imerge]=best_merge->first;
     Ll[imerge+1] = Llc+height[imerge];
-    Prior[imerge+1] = Prior[imerge];
-    if(is_bayesian){
-      // a checker
-      //Ll[imerge+1]+=log(K_before-1)-log(V-K_before+1);
-      //Prior[imerge+1]+=log(K_before-1)-log(V-K_before+1);
-      Prior[imerge+1]+=lgamma(node_h.size+node_g.size+1)-lgamma(node_h.size+1)-lgamma(node_g.size+1);
-    }
     Llc = Ll[imerge+1];
     
     // strore merge move in pseudo hclust format 
@@ -345,11 +309,8 @@ List hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,bool disp
   delete method;
   List res = List::create(Named("merge",merge),
                           Named("Ll",Ll),
-                          Named("Prior",Prior),
-                          Named("queue_size",queue_size),
                           Named("data",X),
-                          Named("centers",centers),
-                          Named("k.relaxed",k_relaxed));
+                          Named("centers",centers));
   return res;
 }
 
@@ -444,6 +405,8 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,
 
   Ll[0]=Llc;
   PriorIntra[0]=0;
+  PriorInter[0]=NA_REAL;
+
   int best_imerge_ll=-1;
   double best_ll = Llc;
   
@@ -709,19 +672,20 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,
     
     
     PriorK[imerge+1]=PriorK[imerge]-log(K_before-1)+log(V-K_before+1)+log(K_before);
-    
+    PriorInter[imerge+1]=NA_REAL;
     
     
   }
   
 
-  // intialize first value of prior inter // last value of prior intra // log nb of spanning tree
+  // compute prior inter
+  PriorInter[V-1]=0;
   cholmod_factor* Linter = cholmod_allocate_factor(V,&c);
   int inter_pivot = graph[2*V-2].i_inter;
-
   std::set<int,std::greater<int>> inter_active_nodes;
   inter_active_nodes.insert(inter_active_nodes.begin(),inter_pivot);
-  for(int imerge=(V-2);imerge>=std::max(0,best_imerge_ll);imerge--){
+  int imerge_bound=std::max(V-51,0);
+  for(int imerge=(V-2);imerge>=std::min(imerge_bound,best_imerge_ll);imerge--){
     //Timer t;
     int id_c = V+imerge;
     int g = merge(imerge,0);

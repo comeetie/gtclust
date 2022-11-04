@@ -25,14 +25,16 @@ GTclust builds on top of `?gtclust_graph` it's main function to offers fast clus
 - `centroid` or WPGMC
 - `median` or UPGMC
 
-Furthermore, GTclust also offers two Bayesian linkage criterion [@Heller2005] that enable model selection :  
+Furthermore, GTclust also offers Bayesian models that enable model selection :  
 
-- `bayes_mom` mixture of Multinomial for counts data
 - `bayes_dgmm` diagonal Gaussian mixture models for continuous features
+- `bayes_mom` mixture of Multinomial for counts data
+- `bayes_dirichlet` mixture of Dirichlet distibution for compositional data
 
 To ease, the contiguity graph creation process, gtclust offers several interfaces to works with geographical, temporal (the gt in GTclust comes from here) or sequential data:
 
 - `?gtclust_temp` to cluster sequential data, the contiguity graph follow from the data ordering 
+- `?gtclust_line` to cluster spatial networks
 - `?gtclust_poly` to cluster data associated to geographical polygons, the contiguity graph follow from shared boundaries
 - `?gtclust_delaunay` to cluster data associated to geographical points, the contiguity graph is derived from the Delaunay triangulation of the points (thanks to the `? RTriangle` package [@RTriangle])
 - `?gtclust_knn` to cluster data associated to geographical points, the contiguity graph is derived from the symmetrized knn graph of the geographical points (thanks to the `?RANN` package [@RANN])
@@ -53,7 +55,7 @@ devtools::install_github("comeetie/gtclust")
 
 ## Simple, example
 
-This is a basic example, we first prepare some spatial polygons data, here we used modes share in several municipalities around Paris.
+This is a basic example of spatial network clustering
 
 ```{r example-data,message=FALSE}
 library(gtclust)
@@ -61,152 +63,35 @@ library(dplyr)
 library(sf)
 library(ggplot2)
 library(ggpubr)
-data("modesshare.idf")
-
-# compute row sums
-X <- modesshare.idf |>
-  group_by(CODE_IRIS,NOM_COM)|>
-  transmute(across(nodep:tcom,\(v){log((v+1)/(voiture+1))})) |>
-  select(-voiture)
-
-
-```
-
-
-To do the clustering, we use the `poly` flavor of GTclust and just provide the polygons data.frame we had just prepared. Then we may use the classical function from `?hclust`, `?cutree` to cut the dendrogram at a specific level and the `?plot.gtclust` method to draw the dendrogram:
-
-```{r clustering,fig.show='hold',out.width="100%",fig.width=12,fig.height=6}
-hc=gtclust_poly(X,method=gtmethod_bayes_dgmm(approx=TRUE),display_progress = TRUE)
+data("shenzen")
+hc = gtclust_lines(shenzen |> select(speed),method=gtmethod_bayes_dgmm())
 plot(hc)
-cutree(hc,k=30) |> head(20)
+cl = cutree(hc,16)
 ```
 
 
-In fact the result to a call to a gtclust_* function is a simple S3 object of class `?hclust` with additional fields. So the classical merge, height and order fields are available:
+To do the clustering, we use the `lines` flavor of GTclust and just provide the lines data.frame we had just prepared. Then we may use the classical function from `?hclust`, `?cutree` to cut the dendrogram at a specific level and the `?plot.gtclust` method to draw the dendrogram. In fact the result to a call to a gtclust_* function is a simple S3 object of class `?hclust` with additional fields. So the classical merge, height and order fields are available:
 
 ```{r}
 class(hc)
-str(hc,max.level = 1)
+#str(hc,max.level = 1)
 ```
 
-> **Practicalities:** The `height` field of the result to a call to a gtclus_* function store the cumulative distance between clusters, this is different from hclust which store simply the distance. This choice was motivated by the fact that the distance is not necessarely increrasing for contiguity constrained hierarchical clustering and that it also make sense. For the ward linkage this correspond to the within-cluster sum of square. 
 
 
 You may also use the `?geocutree` function which build directly a spatial data.frame with the clustering results: 
 ```{r geoagg}
-modesshare.idf.agg = geocutree(hc,k=57)
-modesshare.idf.agg |> head()
+shenzen.clust = geocutree(hc,k=9)
+shenzen.clust |> head()
 ```
 
-The returned data.frame contains the geometries of each cluster together with their prototypes. One may use this to compare the choropleth map obtained with the clustered data to the raw data:
+The returned data.frame contains the geometries of each cluster together with their prototypes. 
 
-```{r,echo=FALSE}
-theme_map <- function(...) {
-  theme_minimal() +
-  theme(
-    text = element_text( color = "#22211d"),
-    axis.line = element_blank(),
-    axis.text.x = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks = element_blank(),
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank(),
-    plot.background = element_rect(fill = "#ffffff", color = NA), 
-    panel.background = element_rect(fill = "#ffffff", color = NA), 
-    legend.background = element_rect(fill = "#ffffff", color = NA),
-    panel.border = element_blank(),
-    ...
-  )
-}
-```
-
-
-
-```{r plot,fig.show='hold',out.width="100%",fig.width=14,fig.height=10,warning=FALSE}
-
-
-csize= round(object.size(modesshare.idf.percent)/1048576,1)
-mraw = ggplot(modesshare.idf.percent)+
-  geom_sf(aes(fill=voiture*100),size=0)+
-  theme_map()+
-  scale_fill_distiller("Car (%) :",palette = "Reds",direction = 1,limits=c(0,100))+
-  ggtitle(paste0("Raw data with ",nrow(modesshare.idf)," polygons ",csize,"Mb"))
-
-modesshare.agg.1000=geocutree(hc,k=1000)
-csize= round(object.size(modesshare.agg.1000)/1048576,1)
-magg1000 = ggplot(modesshare.agg.1000)+
-  geom_sf(aes(fill=voiture*100),size=0)+
-  theme_map()+scale_fill_distiller("Car (%) :",palette = "Reds",direction = 1,limits=c(0,100))+
-  ggtitle(paste0("Clustering with 1000 clusters ", csize,"Mb"))
-
-modesshare.agg.500=geocutree(hc,k=500)
-csize= round(object.size(modesshare.agg.500)/1048576,1)
-magg500 = ggplot(modesshare.agg.500)+
-  geom_sf(aes(fill=voiture*100),size=0)+
-  theme_map()+scale_fill_distiller("Car (%) :",palette = "Reds",direction = 1,limits=c(0,100))+
-  ggtitle(paste0("Clustering with 500 clusters ", csize,"Mb"))
-
-modesshare.agg.250=geocutree(hc,k=250)
-csize= round(object.size(modesshare.agg.250)/1048576,1)
-magg250 = ggplot(modesshare.agg.250)+
-  geom_sf(aes(fill=voiture*100),size=0)+
-  theme_map()+scale_fill_distiller("Car (%) :",palette = "Reds",direction = 1,limits=c(0,100))+
-  ggtitle(paste0("Clustering with 250 clusters ", csize,"Mb"))
-
-ggarrange(mraw,magg1000,magg500,magg250,nrow = 2,ncol=2,common.legend = TRUE,legend="bottom")
-```
-
-
-
-```{r plotparis,fig.show='hold',out.width="100%",fig.width=14,fig.height=5,echo=FALSE}
-modesshare.paris = modesshare.idf.percent|>filter(substr(CODE_IRIS,1,2)==75)
-env_paris=st_union(modesshare.paris) |> st_geometry()
-modesshare.paris.agg = st_intersection(modesshare.idf.agg,env_paris)
-
-magg_paris = ggplot(modesshare.paris.agg)+
-  geom_sf(aes(fill=tcom*100),size=0)+
-  theme_map()+
-  scale_fill_distiller("Transit (%) :",palette = "Greens",direction = 1,limits=c(0,100))+
-  ggtitle(paste0("Clustering with ",nrow(modesshare.paris.agg)," polygons"))
-
-mraw_paris = ggplot(modesshare.paris)+
-  geom_sf(aes(fill=tcom*100),size=0)+
-  theme_map()+
-  scale_fill_distiller("Transit (%) :",palette = "Greens",direction = 1,limits=c(0,100))+
-  ggtitle(paste0("Raw data with ",nrow(modesshare.paris)," polygons"))
-
-ggarrange(mraw_paris,magg_paris,nrow = 1,common.legend = TRUE,legend="bottom")
-
-```
-
-
-# Bayesian hierarchical clustering
-
-```{r,fig.show='hold',out.width="100%",fig.width=10,fig.height=5,warning=FALSE}
-hc_mom = gtclust_delaunay(modesshare.idf |> st_centroid(),method="bayes_mom")
-
-
-plot(hc_mom)+
-  ggtitle("Dendrogram of the modesshare.idf dataset","with bayesian ")
-
-
-ggplot(data.frame(ts=res_mom$test.stat,K=(nrow(res_mom$data)-1):1))+
-    geom_point(aes(x=K,y=ts))+theme_bw()+scale_y_continuous("Test statistic")+ggtitle("Bayesian test score","with respect to the number of cluster")
-```
-
-
-# Benchmark
-
-```{r benchplot,fig.show='hold',out.width="100%",fig.width=10,fig.height=5,echo=FALSE}
-data("res.bench")
-
-ggplot(res.bench|>mutate(time=time*10^-9))+
-  geom_line(aes(x=N,y=time,group=alg,color=alg))+
-  geom_point(aes(x=N,y=time,group=alg,color=alg))+
-  geom_text(data=res.bench|>mutate(time=time*10^-9)|>filter(N==max(N)),aes(x=N,y=time,label=alg,color=alg),nudge_x = 500,hjust = "left",vjust="midlle")+theme_bw()+scale_x_continuous(expand = c(0.2,1.5))+scale_color_discrete(guide ="none")+scale_y_continuous("Time (s)")+ggtitle("Running times","of graph building and gtclust variants.")
-
+```{r clustering,fig.show='hold',out.width="100%",fig.width=12,fig.height=6}
+ggplot(shenzen.clust)+
+  geom_sf(aes(color=factor(cl)))+
+  theme_void()+
+  scale_color_brewer(palette="Set1",guide="none")
 ```
 
 # References

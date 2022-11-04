@@ -89,20 +89,13 @@ library(gtclust)
 library(dplyr)
 nb=list(c(2,3),c(1,3),c(1,2,4),c(3,5),c(4,6,7),c(5,7),c(5,6))
 X=matrix(runif(7*2),nrow=7)
-
 hc_res_small = gtclust_graph(nb,data.frame(X),method = gtmethod_bayes_dgmm(),scaling = "raw")
-
-
 k_max= 7
-
 N=nrow(X)
 pr=sptree_prior(hc_res_small,k_max)
-pr$Cnk=lgamma(N)-lgamma(1:k_max)-lgamma(N-2:(k_max+1))
-pr$ptot=pr$inter+pr$intra-pr$intra[1]#-pr$Cnk-lgamma(1:k_max+1)
-pr$Ll=hc_res_small$Ll[N:(N-k_max+1)]
 pr$intra_comp=hc_res_small$PriorIntra[N:(N-k_max+1)]
 pr$inter_comp=hc_res_small$PriorInter[N:(N-k_max+1)]
-pr |> select(inter,inter_comp,intra,intra_comp)
+
 
 library(dplyr)
 library(sf)
