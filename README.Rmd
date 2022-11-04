@@ -14,10 +14,12 @@ knitr::opts_chunk$set(
 )
 ```
 
-# GTclust : A package for fast clustering of spatial or temporal data with contiguity constrained hierarchical clustering
+# GTclust: fast clustering of spatial or temporal data with contiguity constrained hierarchical clustering
 
 <!-- badges: start -->
 <!-- badges: end -->
+
+<img src="man/figures/logo.png" width=200 align="right" />
 
 GTclust builds on top of `?gtclust_graph` it's main function to offers fast clustering of spatial or temporal data with contiguity constrained hierarchical clustering (with full-order relations see [@Guo2008,@Guo2009]). `?gtclust_graph` is a quite classical hierarchical algorithm but which is designed to takes advantage of contiguity constraints defined with a graph between data-points. The contiguity naturally create a sparsely connected graph that can be leveraged to speed-up the calculations, thanks to efficient data-structure [@Ambroise2019], from $O(N^2D)$ to $O(M(log(M)+D))$, with $M$ the number of links in the contiguity graph. To reach these performances, the dissimilarity matrix is computed on the fly and the algorithm resort to a more simple "stored data" approach [@Murtagh2012], which even if known to be less efficient in the general case are well fitted for the contiguity constrained problems with full-order relations. This approach allows to have a low spatial complexity of $O(N)$ but is less efficient with `single` and `complete` linkage criterions. Furthermore, this make the use of non-euclidean dissimilarity measures impossible. Still one may used the classical linkage criterion compatible with a storage based approach and available in `hclust` or `agnes` : 
 

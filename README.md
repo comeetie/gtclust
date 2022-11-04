@@ -6,6 +6,8 @@
 <!-- badges: start -->
 <!-- badges: end -->
 
+<img src="man/figures/logo.png" width=200 align="right" />
+
 GTclust builds on top of `?gtclust_graph` it’s main function to offers
 fast clustering of spatial or temporal data with contiguity constrained
 hierarchical clustering (with full-order relations see Diansheng Guo
