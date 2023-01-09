@@ -380,6 +380,7 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw",display
     # format the results in hclust form
     hc_res = list(merge=merge_mat,
                   Ll = -Llf,
+                  Kunif= length(Llf)-which.max(Llf)+1,
                   height=compute_height(-Llf),
                   PriorIntra = res$PriorIntra,
                   PriorInter = res$PriorInter,
