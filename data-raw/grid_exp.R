@@ -94,7 +94,7 @@ ggplot(res.df)+
 #  theme(plot.subtitle = element_markdown())+ylim(c(0,1))
 
 
-
+knitr::kable(res.df.mean |> select(sigma,alg,nmi_mean) |> tidyr::pivot_wider(names_from=sigma,values_from=nmi_mean),format = "latex",digits = 2)
 
 
 
