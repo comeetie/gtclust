@@ -80,6 +80,10 @@ res.df=do.call(rbind,lapply(res,\(lr){do.call(rbind,lr)}))
 res.df.mean = res.df |> group_by(sigma,alg) |>
   summarize(nmi_mean=mean(nmi),K_mean=mean(K))
 
+tab2 = res.df |> filter(alg=="gtclust") |> group_by(sigma) |> summarise(pk9=mean(K==9),pk8=mean(K==8),mk=mean(K)) |> t()
+
+
+knitr::kable(tab2,format="latex")
 
 library(forcats)
 levels <- c("mclust (9)"= "mclust9","gtclust (9)" = "gtclust9")
@@ -93,11 +97,6 @@ ggplot(res.df)+
   coord_flip()+
   theme_bw()+labs(title="NMI with simulated partition",subtitle = "for several values of sigma",y="NMI",x="")
 
-# library(ggtext)
-#  labs(title="Mutual information with simulated partition",
-#       subtitle="for <span style='color:#66c2a5'>gtclust</span> and <span style='color:#fc8d62'>mclust</span>, on the ten region datasets.",
-#       x="sigma",y="NMI")+
-#  theme(plot.subtitle = element_markdown())+ylim(c(0,1))
 library(ggridges)
 ggplot(res.df|>filter(sigma<=2.25), aes(nmi, alg)) +
   geom_density_ridges(rel_min_height = 0.01, jittered_points = TRUE,
@@ -108,21 +107,27 @@ ggplot(res.df|>filter(sigma<=2.25), aes(nmi, alg)) +
   theme_bw()+
   scale_x_continuous(limits=c(0,1))+
   labs(title="NMI with simulated partition",subtitle = "for several values of sigma",y="NMI",x="")
+ggsave("./data-raw/images/grid_ex_res.pdf",width=7.5,height=6,units = "in")
 
 
-knitr::kable(res.df.mean |> select(sigma,alg,nmi_mean) |> tidyr::pivot_wider(names_from=sigma,values_from=nmi_mean),format = "latex",digits = 2)
 
-ggplot(res.df, aes(x = nmi, y =alg)) +
-  geom_density_ridges(
-    jittered_points = TRUE, quantile_lines = TRUE, scale = 0.9, alpha = 0.7,
-    vline_size = 1.5, vline_color = "red",
-    point_size = 0.4, point_alpha = 0.6,
-    position = position_raincloud(adjust_vlines = TRUE)
-  )+
-  facet_wrap(~sigma)+
-  theme_bw()+
-  scale_x_continuous(limits=c(0,1))+
-  labs(title="NMI with simulated partition",subtitle = "for several values of sigma",y="NMI",x="")
+comp = c("redcap","skater","mclust","mclust (9)","azpg","azpsa")
+wilc.res=do.call(rbind,lapply(c(0.25,0.5,0.75,1,1.25,1.5,1.75,2,2.25),\(cs){
+  sapply(comp,\(algname){
+    wt=wilcox.test(res.df|>filter(alg=="gtclust (9)",sigma==cs)|>pull(nmi), res.df|>filter(alg==algname,sigma==cs)|>pull(nmi), paired = TRUE, alternative = "greater")
+    wt$p.value
+  })
+}))
+apply(wilc.res,1,max)<0.01
+wilc.res=do.call(rbind,lapply(c(0.25,0.5,0.75,1,1.25,1.5,1.75,2,2.25),\(cs){
+  sapply(comp,\(algname){
+    wt=wilcox.test(res.df|>filter(alg=="gtclust",sigma==cs)|>pull(nmi), res.df|>filter(alg==algname,sigma==cs)|>pull(nmi), paired = TRUE, alternative = "greater")
+    wt$p.value
+  })
+}))
+apply(wilc.res,1,max)<0.01
+knitr::kable(res.df.mean |> filter(!sigma==2.5) |> select(sigma,alg,nmi_mean) |> tidyr::pivot_wider(names_from=sigma,values_from=nmi_mean),format = "latex",digits = 2)
+
 
 sigma_list=c(0.5,1,1.5,2)
 res_plots=list()
@@ -185,6 +190,6 @@ library(ggpubr)
 annotate_figure(ggarrange(plotlist = res_plots),
                 top = text_grob("Example of clustering results on simulated data", size = 14))
 res.df.wide=res.df |> mutate(conf=paste("sigma",sigma,"rep",r,sep = "_")) |> select(conf,sigma,alg,nmi) |> tidyr::pivot_wider(names_from="alg",values_from = "nmi")
-
+ggsave("./data-raw/images/grid_exp_sample_results.pdf",width=7.5,height=5.5,units = "in")
 
 
