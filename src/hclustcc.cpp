@@ -407,7 +407,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,
   PriorIntra[0]=0;
   PriorInter[0]=NA_REAL;
 
-  int best_imerge_ll=-1;
+  int best_imerge_ll=0;
   double best_ll = Llc;
   
   Progress p(V-1, display_progress);
@@ -519,8 +519,12 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,
     height[imerge]=best_merge->first;
     Ll[imerge+1] = Llc-method->dist(&node_g,&node_h);
     Llc = Ll[imerge+1];
-    if(Llc>best_ll){
-      best_ll=Llc;
+    PriorK[imerge+1]=PriorK[imerge]-log(K_before-1)+log(V-K_before+1)+log(K_before);
+    PriorInter[imerge+1]=NA_REAL;
+    
+    //Rcout << Llc << std::endl;
+    if(Llc+PriorK[imerge+1]>best_ll){
+      best_ll=Llc+PriorK[imerge+1];
       best_imerge_ll=imerge;
     }
     
@@ -671,9 +675,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,
     
     
     
-    PriorK[imerge+1]=PriorK[imerge]-log(K_before-1)+log(V-K_before+1)+log(K_before);
-    PriorInter[imerge+1]=NA_REAL;
-    
+
     
   }
   
@@ -685,7 +687,7 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,
   std::set<int,std::greater<int>> inter_active_nodes;
   inter_active_nodes.insert(inter_active_nodes.begin(),inter_pivot);
   int imerge_bound=std::max(V-51,0);
-  for(int imerge=(V-2);imerge>=std::min(imerge_bound,best_imerge_ll);imerge--){
+  for(int imerge=(V-2);imerge>=std::max(imerge_bound,best_imerge_ll);imerge--){
     //Timer t;
     int id_c = V+imerge;
     int g = merge(imerge,0);
