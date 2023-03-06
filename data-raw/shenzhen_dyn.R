@@ -5,8 +5,10 @@ library(ggplot2)
 library(sfnetworks)
 library(gtclust)
 library(igraph)
+library(stringr)
 library(tidygraph)
 library(lubridate)
+library(ggpubr)
 # see https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0260201
 # and also https://figshare.com/articles/dataset/Shenzhen_whole_day_Speeds/7212230
 
@@ -95,7 +97,7 @@ speed_quarter=speeds_long |> mutate(dhp=as.POSIXct(str_sub(day_h,4,20),format="%
   summarise(speed=mean(speed,na.rm=TRUE),ts=first(day_h))
 speed_temp = speed_quarter |> filter(day=="D9",hour(dhp)>=7,dhp<=as.POSIXct("10H30",format="%HH%M"))
 ts.list = unique(speed_temp$ts)
-
+ttf=length(ts.list)
 nb = sf::st_relate(st_as_sf(shenzhen.net.pick,"edges") ,st_as_sf(shenzhen.net.pick,"edges") , pattern = "F***T****")
 class(nb)="list"
 
@@ -133,7 +135,7 @@ ggarrange(plotlist = plots_dendos,ncol=5,nrow=3)
 
 library(forcats)
 # matching based on length of intersection
-clust_temp = data.frame(matrix(unlist(cl_list),nbr,ttf))
+clust_temp = data.frame(matrix(unlist(cl_list),length(cl_list[[1]]),ttf))
 colnames(clust_temp)=unique(speed_temp$ts)
 nbc = max(clust_temp[,1])
 for (icts in 2:length(ts.list)){
