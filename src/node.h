@@ -2,7 +2,7 @@
 #define NODE
 #include "SuiteSparse_config/SuiteSparse_config.h"
 #include "CHOLMOD/Include/cholmod.h"
-#include <Rcpp.h>
+#include <RcppArmadillo.h>
 
 using namespace Rcpp;
 
@@ -49,6 +49,7 @@ struct multiedge
   
 };
 
+
 struct subfactor
 {
   int * cols;
@@ -79,5 +80,16 @@ struct bayesian_node : abstract_node
     height=n.height;
   }
 };
+
+struct bayesian_dcsbm_node : bayesian_node{
+  int intra_e=0;
+  std::map<int, int> out_edges;
+  std::map<int, int> in_edges;
+  int in_deg=0;
+  int out_deg=0;
+};
+
+
+
 
 #endif

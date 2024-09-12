@@ -1,0 +1,40 @@
+---
+title: "UTD graph"
+format: html
+---
+
+
+
+```{r}
+#| cache: true
+#| collapse: true
+#| warning: false
+library(readr)
+library(sf)
+library(dplyr)
+library(splines)
+library(ggplot2)
+library(dbscan)
+data = read_csv("./links.csv")
+links = st_as_sf(data,coords=c("long","lat"),crs=4326) |>
+  group_by(group,linkid,citycode) |>
+  summarise(do_union=FALSE) |>
+  st_cast("LINESTRING")
+utd=read_csv("utd19_u.csv")
+
+detectors= read_csv("./detectors_public.csv")
+
+selected_city = "zurich"
+
+utd_sel_clean = utd|> filter(city==selected_city,error==0)
+detids = utd_sel_clean |> select(detid) |> unique()
+detids_sub = detids |> sample_n(15)
+```
+
+You can add options to executable code like this 
+
+```{r}
+#| collapse: true
+
+```
+

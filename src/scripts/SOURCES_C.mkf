@@ -1,3 +1,7 @@
 SOURCES_C =  \
       hclustcc.cpp \
       RcppExports.cpp \
+      glm.cpp \
+      family.cpp \
+      linkfunctions.cpp 
+      

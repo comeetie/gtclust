@@ -1,10 +1,16 @@
 # -*- Makefile -*-
-
-PKG_CPPFLAGS = -DNTIMER -I./SuiteSparse_config -DUSE_FC_LEN_T
+PKG_CPPFLAGS = -DNTIMER -I./SuiteSparse_config -DUSE_FC_LEN_T $(SHLIB_OPENMP_CXXFLAGS)
+PKG_CXXFLAGS = $(SHLIB_OPENMP_CXXFLAGS)
 ## we use the BLAS and the LAPACK library:
-PKG_LIBS = $(SUBLIBS) $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS)
+PKG_LIBS = $(SUBLIBS) $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) $(SHLIB_OPENMP_CXXFLAGS)
 
 MkInclude = $(R_HOME)/etc${R_ARCH}/Makeconf
+
+
+
+
+
+
 
 include scripts/SOURCES_C.mkf
 

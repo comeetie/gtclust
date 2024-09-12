@@ -1,10 +1,12 @@
-#include <Rcpp.h>
+#include <RcppArmadillo.h>
 #include <chrono> // for std::chrono functions
 #include "GTMethod.h"
 #include "node.h"
 #include "LaplaceDirichlet.h"
 #include "cholmod_tools.h"
+#include "glm.h"
 // [[Rcpp::depends(RcppProgress)]]
+// [[Rcpp::depends(RcppArmadillo)]]
 #include <progress.hpp>
 using namespace Rcpp;
 
@@ -54,6 +56,18 @@ double cut_cost(cholmod_factor * Lintra,double Lintra_diag[],bayesian_node * nod
 
 
 std::map<int, int> build_inter_links(bayesian_node * node,const std::vector<bayesian_node> * graph){
+  
+  //Rcout << "Node : " << node->cl << std::endl;
+  std::map<int, int> inter_links;
+  for (auto itr = node->neibs.begin(); itr!=node->neibs.end();++itr){
+    int clto = graph->at(itr->first).i_inter;
+    multiedge e = itr->second;
+    inter_links.insert(std::make_pair(clto,e.size));
+  }
+  return(inter_links);
+}
+
+std::map<int, int> build_inter_links(bayesian_dcsbm_node * node,const std::vector<bayesian_dcsbm_node> * graph){
   
   //Rcout << "Node : " << node->cl << std::endl;
   std::map<int, int> inter_links;
@@ -759,6 +773,538 @@ List bayesian_hclustcc_cpp(const List nb,const NumericMatrix& X,List method_obj,
   free(permutation);
   return res;
 }
+
+
+
+
+
+// SBM version
+// todo active_node check
+// update graph ...
+
+//[[Rcpp::export]]
+List bayesian_hclustcc_sbm_cpp(const List nb,const NumericMatrix& graph_triplet,bool display_progress,bool approx,double lambda_in, double lambda_ext) {
+  
+  
+  // start cholmod
+  cholmod_common c ;
+  cholmod_start (&c) ; /* start CHOLMOD */
+  
+  
+  int V = nb.length();
+  
+  
+  // compute data statistics needed for priors or distance
+  // planted
+  GTMethod::bayes_pdcsbm * method = new GTMethod::bayes_pdcsbm(lambda_in,lambda_ext);
+  
+  // no planted
+  //GTMethod::bayes_dcsbm * method = new GTMethod::bayes_dcsbm(lambda_in,lambda_ext);
+
+  
+  
+  // data-structure creation
+  // adjacency graph as an adjacency list
+  std::vector<bayesian_dcsbm_node> graph(2*V-1);
+  std::vector<bayesian_dcsbm_node> initial_sbm_graph(V);
+  // merge priority queue
+  std::multimap<double,std::pair<int, int>,std::less<double>> priority_queue;
+  // list of active nodes
+  std::set<int> active_nodes;
+  for(int i=0; i<nb.length(); ++i){
+    active_nodes.insert(i);
+  }
+  
+  // current negative loglike
+  double Llc = 0;
+  
+  // sbm graph initialisation from triplet
+  int nb_externe_links =0 ;
+  int nb_externe_pairs= V*(V-1);
+  for(int i=0; i<graph_triplet.nrow(); ++i){
+    int from = graph_triplet(i,0);
+    int to = graph_triplet(i,1);
+    int v = graph_triplet(i,2);
+    if(from!=to){
+      initial_sbm_graph[from].out_edges.insert({to,v});
+      initial_sbm_graph[to].in_edges.insert({from,v});
+      nb_externe_links+=v;
+    }else{
+      initial_sbm_graph[from].intra_e=initial_sbm_graph[from].intra_e+v;
+    }
+    initial_sbm_graph[from].out_deg=initial_sbm_graph[from].out_deg+v;
+    initial_sbm_graph[from].in_deg=initial_sbm_graph[from].in_deg+v;
+  }
+  int nblinks = 0;
+  for(int i=0; i<nb.length(); ++i){
+    if(nb[i]!=R_NilValue) {
+      NumericVector nbi = as<NumericVector>(nb[i]);
+      bayesian_dcsbm_node cnode = method->init_node(i,initial_sbm_graph[i]);
+      cnode.lognbtree = 0;
+      cnode.i_inter = i;
+      Llc+=cnode.height;
+      for(int n=0; n<nbi.length(); ++n){
+        int j = nbi[n];
+        if(i!=j){
+          bayesian_dcsbm_node vnode = method->init_node(j,initial_sbm_graph[j]);
+          double d = method->dist(&cnode,&vnode,nb_externe_pairs,nb_externe_links);
+          //double d = method->dist(&cnode,&vnode,active_nodes,initial_sbm_graph);
+          //Rcout << i << "--" << j << " : " << d  << std::endl;
+          multiedge e = multiedge(1,d);
+          e.add_edge(std::make_pair(i,j));
+          e.intra_lnbtree=0;
+          cnode.neibs.insert(std::make_pair(j,e));
+          
+          if(i<j){
+            nblinks++;
+            priority_queue.insert(std::make_pair(d,std::make_pair(i,j)));
+          }
+          
+        }
+      }
+      graph[i]=cnode;
+    }
+  }
+  
+  // initialize inter cluster factorization
+  cholmod_sparse * L = inter_to_sparse(graph,V,nblinks,&c);
+  cholmod_factor * Li = cholmod_analyze(L, &c) ; /* analyze */
+  //cholmod_factorize(L, Linter, &c) ; 
+  //double logdetfull = cholmod_tools_logdet(Linter);
+  int * permutation = cholmod_tools_iPerm(((int *)Li->Perm),V);
+  int * pp = permutation;
+  // initialize intra clusters factorisation
+  // we will use the same permuation for both.
+  double * Lintra_diag = (double*)malloc(sizeof(double) * V);
+  for(int r=0;r<V;r++){
+    graph[r].intra_pivot = pp[r];//permutation[r];
+    graph[r].intra_nodes.insert(graph[r].intra_nodes.begin(),pp[r]);//permutation[r]);
+    graph[r].i_inter = permutation[r];
+    active_nodes.insert(permutation[r]);
+    Lintra_diag[r]=1;
+  }
+  cholmod_factor* Lintra = cholmod_allocate_factor(V,&c);
+  
+  // Lets Merge !
+  NumericMatrix merge(V-1,2);
+  NumericVector height(V-1);
+  NumericVector queue_size(V-1);
+  NumericVector Ll(V);
+  NumericVector PriorIntra(V);
+  NumericVector PriorInter(V);
+  NumericVector PriorK(V);
+  
+  Ll[0]=Llc;
+  PriorIntra[0]=0;
+  PriorInter[0]=NA_REAL;
+  
+  int best_imerge_ll=0;
+  double best_ll = Llc;
+  
+  Progress p(V-1, display_progress);
+  for(int imerge=0;imerge<(V-1);imerge++){
+    
+    if (Progress::check_abort() ){
+      stop("Error : user interupt.");
+    }
+    p.increment(); 
+    
+    queue_size[imerge]=priority_queue.size();
+    int K_before = V-imerge; 
+    int node_id = V+imerge;
+    auto best_merge = priority_queue.begin();
+    
+    
+    
+    std::pair<int,int> edge = best_merge->second; 
+    int g = std::get<0>(edge);
+    int h = std::get<1>(edge);
+    
+    
+    
+    bayesian_dcsbm_node node_g = graph[g];
+    bayesian_dcsbm_node node_h = graph[h];
+    //Rcout << node_g.id << "--" << node_h.id << ", height :" << best_merge->first << std::endl;
+    
+
+    // strore merge move in pseudo hclust format
+    
+    merge(imerge,0)=g;
+    merge(imerge,1)=h;
+    
+    
+    // update actives_nodes
+    // active_nodes.erase(active_nodes.find(node_h.i_inter));
+    
+    // create a new node
+    bayesian_dcsbm_node new_node = method->merge(node_id,&node_g,&node_h,height[imerge]);
+
+    
+    // get the cutset g,h
+    // for(auto iii=node_g.neibs.begin();iii!=node_g.neibs.end();++iii){
+    //   Rcout << iii->first << std::endl;
+    // }
+    
+    std::vector<std::pair<int, int>> cutset = node_g.neibs.at(h).edges;
+    //Timer t1;
+    // get the limits of elimination tree for logdet delta computations
+    int iminh = node_h.intra_pivot;
+    int iming = std::numeric_limits<int>::max();
+    int ig,ih;
+    for (auto it=cutset.begin(); it !=cutset.end(); ++it){
+      if(node_g.intra_nodes.find(pp[it->first])!=node_g.intra_nodes.end()){
+        ig = pp[it->first];
+        ih = pp[it->second];
+      }else{
+        ih = pp[it->first];
+        ig = pp[it->second];
+      }
+      if(ig<iming && ig!=node_g.intra_pivot){
+        iming=ig;
+      }
+      if(ih<iminh){
+        iminh=ih;
+      }
+    }
+    //Rcout << "Time elapsed (cutset find origine): " << t1.elapsed() << " seconds" << std::endl;
+
+    // check for bridge merge in this case we may optimize the update of merge cost
+    bool bridge_merge = false;
+    if(cutset.size()==1){
+      bridge_merge = true;
+    }
+    
+    // build cholevky factorization of new node
+    //Timer t2;
+    cholmod_tools_Lup_intra(Lintra,node_g.intra_pivot,node_h.intra_pivot,node_h.intra_pivot_edges,&cutset,pp,&c);
+    //Rcout << "Time elapsed (update): " << t2.elapsed() << " seconds" << std::endl;
+    // update remaining pivot edges
+    new_node.intra_pivot = node_g.intra_pivot;
+    new_node.intra_pivot_edges =  cholmod_tools_pivotedgesup_intra(V,node_g.intra_pivot,node_g.intra_pivot_edges,&cutset,pp);
+    // store lognbtree
+    double ld_deltag = cholmod_tools_logdet_subset_delta(Lintra,node_g.intra_nodes,Lintra_diag,iming);
+    double ld_deltah = cholmod_tools_logdet_subset_delta(Lintra,node_h.intra_nodes,Lintra_diag,iminh);
+    new_node.lognbtree =  node_g.lognbtree+ld_deltag+node_h.lognbtree+ld_deltah;
+    // clean small values coming from numerical comp
+    if(new_node.lognbtree<0){
+      new_node.lognbtree=0;
+    }
+
+    // merge the cluster node list (taking at basis the biggest cluster of g,h)
+    if(node_g.intra_nodes.size()>node_h.intra_nodes.size()){
+      new_node.intra_nodes = node_g.intra_nodes;
+      for (auto hnode = node_h.intra_nodes.begin();hnode!=node_h.intra_nodes.end(); ++hnode){
+        new_node.intra_nodes.insert(*hnode); 
+      }
+    }else{
+      new_node.intra_nodes = node_h.intra_nodes;
+      for (auto gnode = node_g.intra_nodes.begin();gnode!=node_g.intra_nodes.end(); ++gnode){
+        new_node.intra_nodes.insert(*gnode); 
+      }
+    }
+    
+    //Rcout << "lognbtree - intra :" << new_node.lognbtree << std::endl;
+    PriorIntra[imerge+1] = PriorIntra[imerge];
+    PriorIntra[imerge+1]+= new_node.lognbtree-node_g.lognbtree-node_h.lognbtree;
+    
+    
+    
+    height[imerge]=best_merge->first;
+    
+
+    
+    //Ll[imerge+1] = Llc-method->dist(&node_g,&node_h,active_nodes,graph);
+    Ll[imerge+1] = Llc-method->dist(&node_g,&node_h,nb_externe_pairs,nb_externe_links);
+    Llc = Ll[imerge+1];
+    PriorK[imerge+1]=PriorK[imerge]-log(K_before-1)+log(V-K_before+1)+log(K_before);
+    PriorInter[imerge+1]=NA_REAL;
+    
+    //Rcout << Llc << std::endl;
+    if(Llc+PriorK[imerge+1]>best_ll){
+      best_ll=Llc+PriorK[imerge+1];
+      best_imerge_ll=imerge;
+    }
+    
+    
+    
+    // update active nodes
+    active_nodes.erase(h);
+    active_nodes.erase(g);
+    active_nodes.insert(new_node.id);
+    
+    
+    // update sbm graph
+    for(auto nn_oe = new_node.out_edges.begin();nn_oe!=new_node.out_edges.end();nn_oe++){
+      int to = nn_oe->first;
+      int nval = 0;
+      auto itg = graph[to].in_edges.find(g);
+      if(itg!=graph[to].in_edges.end()){
+        nval+=itg->second;
+        graph[to].in_edges.erase(g);
+      }
+      auto ith = graph[to].in_edges.find(h);
+      if(ith!=graph[to].in_edges.end()){
+        nval+=ith->second;
+        graph[to].in_edges.erase(h);
+      }
+      graph[to].in_edges.insert({new_node.id,nval});
+    }
+    
+    for(auto nn_ie = new_node.in_edges.begin();nn_ie!=new_node.in_edges.end();nn_ie++){
+      int from = nn_ie->first;
+      int nval = 0;
+      auto itg = graph[from].out_edges.find(g);
+      if(itg!=graph[from].out_edges.end()){
+        nval+=itg->second;
+        graph[from].out_edges.erase(g);
+      }
+      auto ith = graph[from].out_edges.find(h);
+      if(ith!=graph[from].out_edges.end()){
+        nval+=ith->second;
+        graph[from].out_edges.erase(h);
+      }
+      graph[from].out_edges.insert({new_node.id,nval});
+    }
+    // update sbm graph global stats
+    nb_externe_pairs = nb_externe_pairs-2*node_g.size*node_h.size;
+    int nbl_gh = 0;
+    std::map<int, int> g_out_edges = node_g.out_edges;
+    std::map<int, int> h_out_edges = node_h.out_edges;
+    auto it_exist_hg =h_out_edges.find(node_g.id);
+    if ( it_exist_hg != h_out_edges.end()){
+      nbl_gh+=it_exist_hg->second;
+    }
+    auto it_exist_gh =g_out_edges.find(node_h.id);
+    if ( it_exist_gh != g_out_edges.end()){
+      nbl_gh+=it_exist_gh->second;
+    }
+    nb_externe_links=nb_externe_links-nbl_gh;
+  
+    // update the inter-graph and priority queue
+    for(auto nei_g = node_g.neibs.begin();nei_g!=node_g.neibs.end();nei_g++){
+      
+      int i = g;
+      int j = nei_g->first;
+      
+      
+      multiedge uv = nei_g->second;
+      // old link deletion in priority_queue
+      double cheight = uv.height;
+      auto search = priority_queue.equal_range(cheight);
+      for (auto s = search.first; s != search.second; ++s){
+        std::pair<int,int> edge = s->second;
+        if(std::get<0>(edge)==std::min(i,j) && std::get<1>(edge)==std::max(i,j)){
+          priority_queue.erase(s);
+          break;
+        }
+      }
+      
+      // get the olds links
+      multiedge old_links = graph[j].neibs.at(i);
+      // old link deletion in graph
+      graph[j].neibs.erase(i);
+      // new links in graph
+      if(j!=h){
+        // distance calculation
+        
+        // bridge merge ! if h is also a neib we can't use the shortcut
+        auto search = node_h.neibs.find(j);
+        if(bridge_merge && search==node_h.neibs.end()){
+          // link j -> node_id
+          old_links.intra_lnbtree+=node_h.lognbtree;
+        }else{
+          old_links.intra_lnbtree=std::nan("");
+        }
+        
+        //double d = method->dist(&new_node,&graph[j],active_nodes,graph);
+        double d = method->dist(&new_node,&graph[j],nb_externe_pairs,nb_externe_links);
+        old_links.height=d;
+        new_node.neibs.insert(std::make_pair(j,old_links));
+        graph[j].neibs.insert(std::make_pair(node_id,old_links));
+      }
+      
+      
+    }
+    
+    
+    for(auto nei_h = node_h.neibs.begin();nei_h!=node_h.neibs.end();nei_h++){
+      
+      int i = h;
+      int j = nei_h->first;
+      
+      multiedge uv = nei_h->second;
+      double cheight = uv.height;
+      // old link deletion in priority_queue
+      
+      auto search = priority_queue.equal_range(cheight);
+      for (auto s = search.first; s != search.second; ++s){
+        std::pair<int,int> edge = s->second;
+        
+        if(std::get<0>(edge)==std::min(i,j) && std::get<1>(edge)==std::max(i,j)){
+          priority_queue.erase(s);
+          break;
+        }
+      }
+      
+      
+      // old link deletion in graph
+      multiedge old_links = graph[j].neibs.at(i);
+      // old link deletion in graph
+      graph[j].neibs.erase(i);
+      
+      // new links in graphs
+      if(j!=g){
+        // first case the links was not created by inspecting the neibs of g
+        if(new_node.neibs.find(j)==new_node.neibs.end()){
+          //double d = method->dist(&new_node,&graph[j],active_nodes,graph);
+          double d = method->dist(&new_node,&graph[j],nb_externe_pairs,nb_externe_links);
+          old_links.height=d;
+          // if bridge merge 
+          if(bridge_merge){
+            // link j -> node_id
+            old_links.intra_lnbtree+=node_g.lognbtree;
+          }else{
+            old_links.intra_lnbtree=std::nan("");
+          }
+          
+          new_node.neibs.insert(std::make_pair(j,old_links));
+          graph[j].neibs.insert(std::make_pair(node_id,old_links));
+        }else{
+          // the link was already created during the inspection of g neibs
+          new_node.neibs.at(j).merge_edges(old_links);
+          graph[j].neibs.at(node_id).merge_edges(old_links);
+        }
+      }
+      
+    }
+    
+    
+    
+    // update i_inter and inter links
+    new_node.i_inter = node_g.i_inter;
+    // we need to store the inter links at death time
+    graph[h].inter_edges = build_inter_links(&node_h,&graph);
+    // add the newly created node
+    graph[node_id]=new_node;
+    
+    
+    
+    
+    
+    
+    // add the new possible merges in the priority queue
+    for(auto nei = new_node.neibs.begin();nei!=new_node.neibs.end();nei++){
+      multiedge e = nei->second;
+      double d = e.height;
+      double lnbtree = e.intra_lnbtree;
+      double j = nei->first;
+      
+      // update the merge cost to incorporate the prior
+      // std::set<int> old_pivot_edges,const std::vector<std::pair<int, int>> * cutset,
+      double cc=0;
+      // if we manage to compute lnbtree in bridge merge case do nothing but if this is not the case 
+      // we must compute it
+      // in approx mode the prior is not used to sort the merge
+      if(!approx){
+        if(std::isnan(lnbtree)){
+          lnbtree = cut_cost(Lintra,Lintra_diag,&(graph[node_id]),&(graph[j]),pp,&c);
+          graph[node_id].neibs.at(j).intra_lnbtree=lnbtree; 
+          graph[j].neibs.at(node_id).intra_lnbtree=lnbtree;
+          
+        }
+        int cutset_size = graph[node_id].neibs.at(graph[j].id).edges.size();
+        cc = lnbtree-graph[node_id].lognbtree-graph[j].lognbtree-log(cutset_size);
+      }
+      
+      
+      
+      
+      double nd = d-cc;
+      graph[node_id].neibs.at(j).height=nd;
+      graph[j].neibs.at(node_id).height=nd;
+      priority_queue.insert(std::make_pair(nd,std::make_pair(j,node_id)));
+    }
+    
+    
+    
+    
+    
+    
+    
+  }
+  
+  
+  // compute prior inter
+  PriorInter[V-1]=0;
+  cholmod_factor* Linter = cholmod_allocate_factor(V,&c);
+  int inter_pivot = graph[2*V-2].i_inter;
+  std::set<int,std::greater<int>> inter_active_nodes;
+  inter_active_nodes.insert(inter_active_nodes.begin(),inter_pivot);
+  int imerge_bound=std::max(V-51,0);
+  for(int imerge=(V-2);imerge>=std::max(imerge_bound,best_imerge_ll);imerge--){
+    //Timer t;
+    int id_c = V+imerge;
+    int g = merge(imerge,0);
+    int h = merge(imerge,1);
+    inter_active_nodes.insert(inter_active_nodes.begin(),graph[h].i_inter);
+    
+    cholmod_sparse * ladd = cholmod_tools_edges_inter(V, graph[h].i_inter, inter_pivot,graph[h].inter_edges,&c);
+    cholmod_updown(true,ladd,Linter,&c);
+    cholmod_free_sparse (&ladd,&c);
+    
+    
+    // need to remove 1 from the diag on graph[h].i_inter since Linter is eye at start
+    std::map<int,int> ediag;
+    ediag.insert(std::make_pair(graph[h].i_inter,1));
+    cholmod_sparse * ldiag = cholmod_tools_edges_inter(V, graph[h].i_inter, graph[h].i_inter,ediag,&c);
+    cholmod_updown(false,ldiag,Linter,&c);
+    cholmod_free_sparse (&ldiag,&c);
+    
+    
+    // remove intra (g-h) link for the del step
+    auto search = graph[h].inter_edges.find(graph[g].i_inter);
+    if(search!=graph[h].inter_edges.end()){
+      graph[h].inter_edges.erase(search);
+    }
+    if(graph[g].i_inter!=inter_pivot){
+      cholmod_sparse * ldel = cholmod_tools_edges_inter(V, graph[g].i_inter, inter_pivot,graph[h].inter_edges,&c);
+      cholmod_updown(false,ldel,Linter,&c);
+      cholmod_free_sparse (&ldel,&c);
+    }else{
+      // if g is the pivot i just need to delete some weigths on the diagonal
+      cholmod_sparse * ldel = cholmod_tools_edges_diag_inter(V, graph[h].inter_edges,&c);
+      cholmod_updown(false,ldel,Linter,&c);
+      cholmod_free_sparse (&ldel,&c);
+    }
+    
+    //Rcout << "Time elapsed: " << t.elapsed() << " seconds" << std::endl;
+    //Rcout << "-----" << cholmod_tools_logdet(Linter) << "-----" << std::endl;
+    PriorInter[imerge] = cholmod_tools_logdet_subset(Linter,inter_active_nodes);
+  }
+  
+  
+  
+  // Export Centers ???
+  delete method;
+  List res = List::create(Named("merge",merge),
+                          Named("Ll",Ll),
+                          Named("PriorIntra",PriorIntra),
+                          Named("PriorInter",PriorInter),
+                          Named("PriorK",PriorK),
+                          Named("queue_size",queue_size),
+                          Named("k.relaxed",1));
+  
+  
+  cholmod_free_sparse (&L,&c);
+  cholmod_free_factor (&Li,&c);
+  cholmod_free_factor (&Lintra,&c);
+  cholmod_free_factor (&Linter,&c);
+  cholmod_finish (&c) ; /* finish CHOLMOD */
+  free(Lintra_diag);
+  free(permutation);
+  return res;
+}
+
 
 
 

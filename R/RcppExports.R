@@ -37,11 +37,31 @@ dirichlet_evidence <- function(n, lambda, lpi, pi) {
     .Call(`_gtclust_dirichlet_evidence`, n, lambda, lpi, pi)
 }
 
+glm_fit <- function(X, y, family_name = "poisson", lambda = 0.01, maxit = 100L, tol = 1e-6) {
+    .Call(`_gtclust_glm_fit`, X, y, family_name, lambda, maxit, tol)
+}
+
+glm_laplace_evidence <- function(X, y, fit) {
+    .Call(`_gtclust_glm_laplace_evidence`, X, y, fit)
+}
+
+delta_merge_post <- function(fit1, fit2, lambda) {
+    .Call(`_gtclust_delta_merge_post`, fit1, fit2, lambda)
+}
+
+log_mvn_pdf <- function(x, mu, S) {
+    .Call(`_gtclust_log_mvn_pdf`, x, mu, S)
+}
+
 hclustcc_cpp <- function(nb, X, method_obj, display_progress) {
     .Call(`_gtclust_hclustcc_cpp`, nb, X, method_obj, display_progress)
 }
 
 bayesian_hclustcc_cpp <- function(nb, X, method_obj, display_progress, approx) {
     .Call(`_gtclust_bayesian_hclustcc_cpp`, nb, X, method_obj, display_progress, approx)
+}
+
+bayesian_hclustcc_sbm_cpp <- function(nb, graph_triplet, display_progress, approx, lambda_in, lambda_ext) {
+    .Call(`_gtclust_bayesian_hclustcc_sbm_cpp`, nb, graph_triplet, display_progress, approx, lambda_in, lambda_ext)
 }
 

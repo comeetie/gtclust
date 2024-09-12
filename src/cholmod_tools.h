@@ -4,7 +4,7 @@
 #include "SuiteSparse_config/SuiteSparse_config.h"
 #include "CHOLMOD/Include/cholmod.h"
 #include "node.h"
-#include <Rcpp.h>
+#include <RcppArmadillo.h>
 using namespace Rcpp;
 
 void print_factor(cholmod_factor * L){
@@ -528,6 +528,54 @@ cholmod_sparse* cholmod_tools_edges_diag_inter(int n,const std::map<int, int> & 
     r++;
   }
   return(S);
+}
+
+
+// hugly must 
+cholmod_sparse * inter_to_sparse(std::vector<bayesian_dcsbm_node> graph,int V,int nblinks,cholmod_common * com){
+  
+  cholmod_sparse * L = cholmod_allocate_sparse(V,V,nblinks+V,true,false,-1,CHOLMOD_REAL, com);
+  int ichol = 0;
+  
+  ((int*)L->p)[0]=0;
+  for(int icol=0;icol<V;icol++) {
+    std::map<int, int> wlinks;
+    int diagval = 0;
+    for (auto itr = graph[icol].neibs.begin(); itr!=graph[icol].neibs.end();++itr){
+      int jg = itr->first;
+      int j = graph[jg].i_inter;
+      multiedge e = itr->second;
+      diagval+=e.size;
+      if(j>icol){
+        wlinks.insert(std::make_pair(j,-e.size));
+      }
+    }
+    wlinks.insert(std::make_pair(icol,diagval));
+    int nbl = wlinks.size();
+    ((int*)L->p)[icol+1]=((int*)L->p)[icol]+nbl;
+    if(icol!=(V-1)){
+      for(auto itl =wlinks.begin();itl!=wlinks.end();++itl){
+        //Rcout << icol << "--" << itl-> first << itl->second << std::endl;
+        if(itl->first!=(V-1)){
+          ((int*)L->i)[ichol]=itl->first;
+          ((double*)L->x)[ichol]=itl->second;
+        }else{
+          nbl--;
+        }
+        ichol++;
+      }
+      ((int*)L->nz)[icol]=nbl;
+    }else{
+      ((int*)L->i)[ichol]=icol;
+      ((double*)L->x)[ichol]=1;
+      ((int*)L->nz)[icol]=1;
+      ((int*)L->p)[icol+1]=((int*)L->p)[icol]+1;
+      ichol++;
+    }
+    
+  }
+  //print_sparse(L);
+  return(L);
 }
 
 

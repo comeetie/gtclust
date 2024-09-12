@@ -266,7 +266,64 @@ gtclust_lines=function(df,method="ward",scaling="raw",display_progress=FALSE){
 }
 
 
-
+#' @title Hierarchical clustering with contiguity constraints
+#'
+#' @description This function take an data.frame and performs hierarchical clustering with contiguity 
+#' constraints using a graph describing the contiguity (provided )
+#' @param adjacencies_list graph describing the contiguity between the rows of df as a list of adjacencies 
+#' @param triplet graph to fit with dcsbm in triplet fromat
+#' @param display_progress boolean to set progression bar
+#' @return an \code{\link[stats]{hclust}} like object with additional slots
+#' \describe{
+#'   \item{data}{The numeric data (eventually scaled) used for the clustering}
+#'   \item{centers}{The protoypes of each tree nodes}
+#' }
+#' @export
+gtclust_poly_dcsbm = function(poly.sf,ods,join_ori,join_dest,vol,lambda_in=sum(ods[vol])/(nrow(poly.sf)^2)*100,lambda_ext=sum(ods[vol])/(nrow(poly.sf)^2)/100,adjacency="rook",display_progress=FALSE){
+  poly.sf$i = 0:(nrow(poly.sf)-1)
+  poly.df= poly.sf |> st_drop_geometry() 
+  ods_i = ods |> 
+    inner_join(poly.df|>rename(io=i),by=join_ori) |> 
+    inner_join(poly.df|>rename(id=i),by=join_dest) 
+  triplet = as.matrix(ods_i[,c("io","id",vol)])
+  if(adjacency=="rook"){
+    nb = sf::st_relate(zones,zones, pattern = "F***1****")
+  }else{
+    nb = sf::st_relate(zones,zones, pattern = "F***T****")
+  }
+  nb_c = lapply(nb,\(nei){nei-1})
+  res = bayesian_hclustcc_sbm_cpp(nb_c,triplet,TRUE,FALSE,lambda_in,lambda_ext)
+  # complete inter prior with linear slope if needed
+  miss_prior = is.na(res$PriorInter)
+  if(sum(miss_prior)>0){
+    nbmiss = max(which(miss_prior))
+    res$PriorInter[miss_prior]=seq(res$PriorIntra[length(res$PriorIntra)],res$PriorInter[nbmiss+1],length.out=nbmiss)
+  }
+  # compute the spanning tree prior term
+  ptree = (res$PriorInter+res$PriorIntra-res$PriorInter[1])
+  Llf = res$Ll + ptree +res$PriorK;
+  # convert merge mat in hclust format
+  V = nrow(zones);
+  merge_mat = apply(res$merge,2,function(col){ifelse(col<V,-(col+1),col-V+1)})
+  # format the results in hclust form
+  hc_res = list(merge=merge_mat,
+                Ll = -Llf,
+                Kunif = length(Llf)-which.max(Llf)+1,
+                height=compute_height(-Llf),
+                order=order_tree(merge_mat,nrow(res$merge)),
+                PriorIntra = res$PriorIntra,
+                PriorInter = res$PriorInter,
+                PriorK = res$PriorK,
+                data=poly.sf,
+                method="bayes_dcsbm")
+  
+  hc_res$call=sys.call()
+  # add geographical data
+  hc_res$leafs_geometry = sf::st_geometry(poly.sf)
+  hc_res$geotree = build_geotree(hc_res$merge,poly.sf)
+  class(hc_res)=   c("gtclust","hclust","geoclust")
+  hc_res
+}
 
 #' @title Hierarchical clustering with contiguity constraints
 #'

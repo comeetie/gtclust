@@ -1,7 +1,7 @@
 #ifndef DIST
 #define DIST
 
-#include <Rcpp.h>
+#include <RcppArmadillo.h>
 using namespace Rcpp;
 
 double dist_euclidean_squared(const NumericVector& x1,const NumericVector& x2){
@@ -69,6 +69,21 @@ NumericVector colvar(const NumericMatrix& X) {
     ans[j] = sumsq/nr - (sum/nr)*(sum/nr);
   }
   return ans;
+}
+
+
+std::map<int, int> merge_edges(std::map<int, int> g_out_edges,std::map<int, int> h_out_edges){
+  std::map<int, int> res;
+  res.insert(std::begin(g_out_edges), std::end(g_out_edges));
+  for (auto it=h_out_edges.begin();it!=h_out_edges.end(); ++it){
+    auto it_exist =res.find(it->first);
+    if ( it_exist != res.end()){
+      it_exist->second = it_exist->second+it->second;
+    }else{
+      res.insert({it->first,it->second});
+    }
+  }
+  return res;
 }
 
 #endif

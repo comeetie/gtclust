@@ -1,0 +1,77 @@
+---
+title: "Bassin de vies fonctionelles"
+author: "Etienne Côme"
+format: html
+execute: 
+  warning: false
+---
+
+## Bassin de vie
+
+Définition et methodologie de définition actuelles / renouvellemet par rapport aux données orange.
+
+
+
+## Données
+
+Ods jour de semaine moyen sur 1 mois à l'échelle des triris des nationaux résidants, les flux en dehors du périmètre sont supprimés.
+
+
+```{r}
+library(sf)
+library(dplyr)
+library(readr)
+library(gtclust)
+zones= st_read("../../mobitic_fv/data/TRIRIS/Data Transport TRIRIS/TRAG_MOBITIC_zonage_TRIRIS.geojson")|>
+  filter(perimetre==1)|> st_transform(2154)
+ods = read_csv("../../mobitic_fv/ods_weekdays.csv") |>
+  mutate(Origine=as.character(Origine),Destination=as.character(Destination)) |>
+  mutate(Volume=round(Volume))
+```
+
+
+
+```{r}
+fit = gtclust_poly_dcsbm(zones,ods,join_ori = c("Origine"="regroupement_desc"),join_dest = c("Destination"="regroupement_desc"),vol = "Volume") 
+```
+```{r}
+plot(fit)
+```
+
+
+
+```{r}
+vth=100
+ori = ods |>filter(Volume>vth,Origine!="999999",Destination!="999999") |> 
+  left_join(zones,by=c("Origine"="regroupement_desc"))|>st_as_sf()|>st_centroid() |> mutate(fid=1:n()) |> 
+  select(fid)
+dest = ods |>filter(Volume>vth,Origine!="999999",Destination!="999999") |> 
+  left_join(zones,by=c("Destination"="regroupement_desc"))|>st_as_sf()|>st_centroid() |> mutate(fid=1:n()) |> 
+  select(fid)
+
+links = bind_rows(ori,dest) |> 
+  group_by(fid) |> 
+  summarise(do_union=FALSE) |> 
+  st_cast("LINESTRING") |> 
+  mutate(Volume=ods|>filter(Volume>vth,Origine!="999999",Destination!="999999") |>pull(Volume))
+
+
+zones_cl = zones |> mutate(cl=as.factor(cutree(fit,k=fit$Kunif))) |> 
+  left_join(ods|>count(Origine,wt=Volume,name="VolumeOut"),by=c("regroupement_desc"="Origine")) |>
+  left_join(ods|>count(Destination,wt=Volume,name="VolumeIn"),by=c("regroupement_desc"="Destination"))
+
+regions = zones_cl |> group_by(cl) |> summarise(n=n())
+```
+
+```{r}
+library(ggplot2)
+ggplot(zones_cl |>st_centroid()) + 
+  geom_sf(data=regions,aes(fill=factor(cl)),alpha=0.05,linewidth=0)+
+  geom_sf(data=links|>filter(Volume>10),aes(linewidth=Volume)) + 
+  scale_linewidth_continuous(limits=c(0,200000),range=c(0,8))+
+  geom_sf(aes(color=factor(cl),size=VolumeIn)) + theme_void() + 
+  scale_color_discrete(guide="none")+
+  scale_fill_discrete(guide="none")+
+  geom_sf(data=regions,color="red",fill="#ffffff00",linewidth=0.4,linetype=2)
+```
+

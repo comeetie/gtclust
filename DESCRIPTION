@@ -17,10 +17,12 @@ Imports:
     maptree,
     ggdendro,
     Matrix,
-    igraph
+    igraph,
+    RcppArmadillo
 LinkingTo: 
     Rcpp,
-    RcppProgress
+    RcppProgress,
+    RcppArmadillo
 Depends: 
     R (>= 2.10)
 LazyData: true
