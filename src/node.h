@@ -29,6 +29,9 @@ struct node : abstract_node
   }
 };
 
+
+
+
 struct multiedge
 {
   double height;
@@ -79,6 +82,14 @@ struct bayesian_node : abstract_node
     x=n.x;
     height=n.height;
   }
+};
+
+
+
+struct mixednode : bayesian_node
+{
+  NumericVector x_c;
+  std::vector<NumericVector> x_d;
 };
 
 struct bayesian_dcsbm_node : bayesian_node{

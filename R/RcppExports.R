@@ -53,10 +53,6 @@ log_mvn_pdf <- function(x, mu, S) {
     .Call(`_gtclust_log_mvn_pdf`, x, mu, S)
 }
 
-hclustcc_cpp <- function(nb, X, method_obj, display_progress) {
-    .Call(`_gtclust_hclustcc_cpp`, nb, X, method_obj, display_progress)
-}
-
 bayesian_hclustcc_cpp <- function(nb, X, method_obj, display_progress, approx) {
     .Call(`_gtclust_bayesian_hclustcc_cpp`, nb, X, method_obj, display_progress, approx)
 }

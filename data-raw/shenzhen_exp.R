@@ -23,6 +23,15 @@ shenzen.df = shenzen |>
 
 
 hc_res=gtclust_lines(shenzen.df,gtmethod_bayes_dgmm())
+
+df=shenzen.df
+nb = sf::st_relate(df,df, pattern = "F***T****")
+class(nb)="list"
+nb_c = lapply(nb,\(nei){nei-1})
+df$disc=factor(df$speed*3.6>45)
+
+hc_res=gtclust_graph(nb,df,gtmethod_bayes_mixed())
+
 fig_dendo=plot(hc_res)+ggtitle("")
 fig_dendo
 Ka = hc_res$Kunif

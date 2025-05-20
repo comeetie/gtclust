@@ -127,6 +127,7 @@ List ldirpost_norm(const NumericVector beta0, int n,const NumericVector & lambda
     NumericVector g=grad_ldirpost(beta,n,lambda,lpi);
     beta=beta-update(iH,g);
     lp = ldirpost(beta,n,lambda,lpi);
+
     it = it+1;
     if(Rcpp::traits::is_nan<REALSXP>(lp)){
       Rcout << "Nan value in LL" << std::endl;
@@ -156,7 +157,8 @@ List ldirpost_norm(const NumericVector beta0, int n,const NumericVector & lambda
       Rcout << n << std::endl;
     }
   }
-  
+  // NumericVector exp_beta=exp(beta);
+  // Rcout << exp_beta << std::endl;
   double lnf = ldirpost(beta,n,lambda,lpi)+D/2*log(2*M_PI)-0.5*logdetH_ldirpost(beta,n,lambda,lpi);
   List res = List::create(Named("beta",beta),Named("lnf", lnf),Named("nbit",it));
   return res;

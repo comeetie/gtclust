@@ -14,11 +14,12 @@ namespace GTMethod{
   class GTMethod {
   
   public:
-    virtual void init(const NumericMatrix& X)  {};
-    virtual abstract_node init_node(int id,NumericVector x) {
+    virtual void init(const List& X)  {};
+    virtual abstract_node init_node(int id,const List & X) {
       node cnode;
       cnode.id   = id;
-      cnode.x    = x; 
+      NumericMatrix Xd = X["data"];
+      cnode.x    = Xd(id,_); 
       cnode.size = 1;
       cnode.height = 0;
       return cnode;
@@ -40,7 +41,7 @@ namespace GTMethod{
   // WARD
   class ward : public GTMethod {
   public:
-    void init(const NumericMatrix& X) {};
+    void init(const List& X) {};
     double dist(abstract_node * node_g,abstract_node * node_h) {
       double w = static_cast< double >(node_g->size*node_h->size)/static_cast< double >(node_g->size+node_h->size);
       return w*dist_euclidean_squared(node_g->x,node_h->x);
@@ -59,7 +60,7 @@ namespace GTMethod{
   // CENTROID
   class centroid : public GTMethod {
   public:
-    void init(const NumericMatrix& X) {};
+    void init(const List& X) {};
     node merge(int new_id,abstract_node * node_g,abstract_node * node_h,double height) {
       node new_node;
       new_node.id = new_id;
@@ -73,18 +74,19 @@ namespace GTMethod{
   
   class median : public GTMethod {
   public:
-    void init(const NumericMatrix& X) {};
+    void init(const List& X) {};
     median() : GTMethod() {};
   };
   
   class chisq : public GTMethod {
   public:
-    void init(const NumericMatrix& X) {
-      int D = X.ncol();
-      int T = sum(X);
+    void init(const List& X) {
+      NumericMatrix Xd = X["data"];
+      int D = Xd.ncol();
+      int T = sum(Xd);
       NumericVector wt(D);
       for(int d=0; d<D; ++d){
-        wt(d)=T/sum(X(_,d));
+        wt(d)=T/sum(Xd(_,d));
       }
       w=wt;
     };
@@ -109,13 +111,14 @@ namespace GTMethod{
   // BAYES Mixture of Multinomials
   class bayes_mom : public GTMethod {
   public:
-    void init(const NumericMatrix& X) {};
-    abstract_node init_node(int id,NumericVector x) {
+    void init(const List& X) {};
+    abstract_node init_node(int id,const List & X) {
+      NumericMatrix Xd = X["data"];
       node cnode;
       cnode.id   = id;
-      cnode.x    = x; 
+      cnode.x    = Xd(id,_); 
       cnode.size = 1;
-      double ldm = log_dirichlet_multinom(x,beta);
+      double ldm = log_dirichlet_multinom(cnode.x,beta);
       cnode.height = ldm;
       List cstats = List::create(Named("Lp",ldm));
       cnode.stats = cstats;
@@ -159,30 +162,34 @@ namespace GTMethod{
   // BAYES Diagonal Mixture Models
   class bayes_dgmm : public GTMethod {
   public:
-    void init(const NumericMatrix& X) {
+    void init(const List& X) {
 
+      NumericMatrix Xd = X["data"];
       if(Rcpp::traits::is_nan<REALSXP>(beta)){
-        beta = 0.1*sum(colvar(X)); 
+        beta = 0.1*sum(colvar(Xd)); 
         //Rcout << "beta prior was fixed at" << beta << std::endl;
       }
 
       if(Rcpp::traits::is_nan<REALSXP>(mu[0])){
-        mu = colmeans(X);
+        mu = colmeans(Xd);
       }
       //Rcout << "mu prior was fixed at" << mu << std::endl;
 
     };
-    abstract_node init_node(int id,NumericVector x) {
+    abstract_node init_node(int id,const List& X) {
+
       node cnode;
+      NumericMatrix Xd = X["data"];
       cnode.id   = id;
-      cnode.x    = x; 
+      cnode.x    = Xd(id,_); 
       cnode.size = 1;
-      NumericVector S(x.length());
-      double ldm = log_gauss_evidence(x,S,1,kappa,tau,beta,mu);
+      NumericVector S(cnode.x.length());
+      double ldm = log_gauss_evidence(cnode.x,S,1,kappa,tau,beta,mu);
       List cstats = List::create(Named("Lp",ldm),
                                  Named("S",S));
       cnode.height = ldm;
       cnode.stats = cstats;
+
       return cnode;
     };
     double dist(abstract_node * node_g,abstract_node * node_h) {
@@ -237,23 +244,158 @@ namespace GTMethod{
   };
 
   
+  // BAYES Diagonal Mixture Models
+  class bayes_mixed : public GTMethod {
+  public:
+    void init(const List& X) {
+      
+      NumericMatrix Xc = X["data_cont"];
+      if(Rcpp::traits::is_nan<REALSXP>(beta)){
+        beta = 0.1*sum(colvar(Xc)); 
+        //Rcout << "beta prior was fixed at" << beta << std::endl;
+      }
+      
+      if(Rcpp::traits::is_nan<REALSXP>(mu[0])){
+        mu = colmeans(Xc);
+      }
+      //Rcout << "mu prior was fixed at" << mu << std::endl;
+      lambda = 1;
+      NumericMatrix Xd = X["data_disc"];
+      D_disc=Xd.ncol();
+      NumericVector ds(D_disc);
+      nbmod=ds;
+      nbmod.fill(0);
+      for (int d=0;d<D_disc;d++){
+        nbmod(d)=max(Xd(_,d))+1;
+      }
+    };
+    abstract_node init_node(int id,const List& X) {
+      node cnode;
+      NumericMatrix Xc = X["data_cont"];
+      cnode.id   = id;
+      cnode.x    = Xc(id,_); 
+      cnode.size = 1;
+      NumericVector S(cnode.x.length());
+      double ldm = log_gauss_evidence(cnode.x,S,1,kappa,tau,beta,mu);
+      NumericMatrix Xd = X["data_disc"];
+      std::vector<NumericVector> x_disc(D_disc);
+      for (int d=0;d<D_disc;d++){
+        NumericVector xt(nbmod(d));
+        xt.fill(0);
+        xt(Xd(id,d))=1;
+        x_disc[d]=xt;
+      }
+      List cstats = List::create(Named("Lp",ldm),
+                                 Named("S",S),
+                                 Named("x_disc",x_disc));
+      cnode.height = ldm;
+      cnode.stats = cstats;
+      return cnode;
+    };
+    double dist(abstract_node * node_g,abstract_node * node_h) {
+      // avoid symmetry problems due to numerical problems
+      if(node_g->id>node_h->id){
+        abstract_node * nt;
+        nt = node_g;
+        node_g=node_h;
+        node_h=nt;
+      }
+      
+      double Lg = node_g->stats["Lp"];
+      double Lh = node_h->stats["Lp"];
+      int size = node_g->size+node_h->size;
+      NumericVector x   = node_g->x*node_g->size/size + node_h->x*node_h->size/size;
+      NumericVector Sg = node_g->stats["S"];
+      NumericVector Sh = node_h->stats["S"];
+      NumericVector S  = Sg+node_g->size*(node_g->x-x)*(node_g->x-x)+Sh+node_h->size*(node_h->x-x)*(node_h->x-x);
+      double Lp    = log_gauss_evidence(x,S,size,kappa,tau,beta,mu);//+lgamma(size+1);
+      
+      std::vector<NumericVector> g_disc = node_g->stats["x_disc"];
+      std::vector<NumericVector> h_disc = node_h->stats["x_disc"];
+      for (int d=0;d<D_disc;d++){
+        NumericVector x   = g_disc[d] + h_disc[d];
+        Lp    += log_dirichlet_multinom(x,lambda);
+      }
+      
+      // reverse for min heap
+      return Lg+Lh-Lp;
+    };
+    node merge(int new_id,abstract_node * node_g,abstract_node * node_h,double height) {
+      node new_node;
+      new_node.id = new_id;
+      new_node.size= node_h->size+node_g->size;
+      new_node.x  = node_g->x*node_g->size/new_node.size + node_h->x*node_h->size/new_node.size;
+      new_node.height = height;
+      NumericVector Sg = node_g->stats["S"];
+      NumericVector Sh = node_h->stats["S"];
+      NumericVector S  = Sg+node_g->size*(node_g->x-new_node.x)*(node_g->x-new_node.x)+
+        Sh+node_h->size*(node_h->x-new_node.x)*(node_h->x-new_node.x);
+      double L   = log_gauss_evidence(new_node.x,S,new_node.size,kappa,tau,beta,mu);
+      
+      
+      
+      
+      std::vector<NumericVector> g_disc = node_g->stats["x_disc"];
+      std::vector<NumericVector> h_disc = node_h->stats["x_disc"];
+      std::vector<NumericVector> new_disc(D_disc);
+      for (int d=0;d<D_disc;d++){
+        NumericVector x   = g_disc[d] + h_disc[d];
+        new_disc[d]=x;
+        L    += log_dirichlet_multinom(x,lambda);
+      }
+      
+      double Lp  = L;//+lgamma(new_node.size+1);
+      List cstats = List::create(Named("Lp",Lp),
+                                 Named("S",S),
+                                 Named("x_disc",new_disc));
+      
+
+      
+      new_node.stats = cstats;
+      return new_node;
+    }
+    bayes_mixed(double kappa_val,double tau_val,double beta_val,NumericVector mu_val) {
+      kappa = kappa_val;
+      tau   = tau_val;
+      beta  = beta_val;
+      mu    = mu_val; 
+      lambda=1;
+      
+    };
+  private:
+    double kappa;
+    double tau;
+    double beta;
+    double lambda;
+    NumericVector mu;
+    NumericVector nbmod;
+    int D_disc;
+  };
   
   // BAYES Dirichlet Mixture Models
   class bayes_dirichlet : public GTMethod {
   public:
-    void init(const NumericMatrix& X) {
+    void init(const List& X) {
+      NumericMatrix Xd = X["data"];
       if(Rcpp::traits::is_nan<REALSXP>(lambda[0])){
-        lambda = colmeans(X);
+        lambda = colmeans(Xd);
         lambda.fill(0.01);
       }
     };
-    abstract_node init_node(int id,NumericVector x) {
+    abstract_node init_node(int id,const List & X) {
       node cnode;
       cnode.id   = id;
-      cnode.x    = x; 
+      
+      // if(sum(x==0)>0){
+      //   x[x==0]=1e-6;
+      //   x=x/(1+sum(x==0)*1e-6);
+      //   //Rcout << x << std::endl;
+      // }
+      NumericMatrix Xd = X["data"];
+      cnode.x    = Xd(id,_); 
       cnode.size = 1;
-      double ldm = dirichlet_evidence(1,lambda,log(x),x);
-      List cstats = List::create(Named("Lp",ldm),Named("lpi",log(x)));
+      double ldm = dirichlet_evidence(1,lambda,log(cnode.x),cnode.x);
+      List cstats = List::create(Named("Lp",ldm),Named("lpi",log(cnode.x)));
       cnode.stats = cstats;
       cnode.height = ldm;
       return cnode;

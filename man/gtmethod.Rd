@@ -7,6 +7,7 @@
 \alias{gtmethod_chisq}
 \alias{gtmethod_bayes_mom}
 \alias{gtmethod_bayes_dgmm}
+\alias{gtmethod_bayes_mixed}
 \alias{gtmethod_bayes_dirichlet}
 \title{aggregation methods for gtclust}
 \usage{
@@ -21,6 +22,14 @@ gtmethod_chisq()
 gtmethod_bayes_mom(beta = 1, approx = FALSE)
 
 gtmethod_bayes_dgmm(
+  tau = 0.01,
+  kappa = 1,
+  beta = NaN,
+  mu = as.matrix(NaN),
+  approx = FALSE
+)
+
+gtmethod_bayes_mixed(
   tau = 0.01,
   kappa = 1,
   beta = NaN,
@@ -49,18 +58,20 @@ aggregation methods for gtclust
 }
 \section{Functions}{
 \itemize{
-\item \code{gtmethod_ward}: classical ward method
+\item \code{gtmethod_ward()}: classical ward method
 
-\item \code{gtmethod_centroid}: classical centroid method
+\item \code{gtmethod_centroid()}: classical centroid method
 
-\item \code{gtmethod_median}: classical median method
+\item \code{gtmethod_median()}: classical median method
 
-\item \code{gtmethod_chisq}: chi-square method
+\item \code{gtmethod_chisq()}: chi-square method
 
-\item \code{gtmethod_bayes_mom}: bayesian mixture of multinomials
+\item \code{gtmethod_bayes_mom()}: bayesian mixture of multinomials
 
-\item \code{gtmethod_bayes_dgmm}: bayesian diagonal gaussian mixture model
+\item \code{gtmethod_bayes_dgmm()}: bayesian diagonal gaussian mixture model
 
-\item \code{gtmethod_bayes_dirichlet}: bayesian diagonal gaussian mixture model
+\item \code{gtmethod_bayes_mixed()}: bayesian mxiture for mixed data LDA + diagonal gaussian mixture model
+
+\item \code{gtmethod_bayes_dirichlet()}: bayesian diagonal gaussian mixture model
+
 }}
-

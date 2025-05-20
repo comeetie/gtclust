@@ -1,20 +1,3 @@
-#' gtclust: A package for fast clustering of spatial or temporal data with contiguity constrained hierarchical clustering
-#'
-#' The mypackage package provides three categories of important functions:
-#' gtclust_graph, gtclust_temp, gt_poly.
-#' 
-#' @section gtclust functions:
-#' The mypackage functions ...
-#'
-#' @docType package
-#' @name gtclust
-#' @import Rcpp
-#' @importFrom Rcpp evalCpp
-#' @useDynLib gtclust, .registration=TRUE
-NULL
-#> NULL
-
-
 #' @title Hierarchical clustering with contiguity constraints for temporal data
 #'
 #' @description This function take a data.frame and performs hierarchical clustering with contiguity constraints.
@@ -287,9 +270,9 @@ gtclust_poly_dcsbm = function(poly.sf,ods,join_ori,join_dest,vol,lambda_in=sum(o
     inner_join(poly.df|>rename(id=i),by=join_dest) 
   triplet = as.matrix(ods_i[,c("io","id",vol)])
   if(adjacency=="rook"){
-    nb = sf::st_relate(zones,zones, pattern = "F***1****")
+    nb = sf::st_relate(poly.sf,poly.sf, pattern = "F***1****")
   }else{
-    nb = sf::st_relate(zones,zones, pattern = "F***T****")
+    nb = sf::st_relate(poly.sf,poly.sf, pattern = "F***T****")
   }
   nb_c = lapply(nb,\(nei){nei-1})
   res = bayesian_hclustcc_sbm_cpp(nb_c,triplet,TRUE,FALSE,lambda_in,lambda_ext)
@@ -366,16 +349,25 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw",display
   if(methods::is(df,"matrix") & !is.numeric(df)){
     stop("df must be numeric.")
   }
-  
+  if(method$method=="bayes_mixed" & !methods::is(df,"data.frame")){
+    stop("df must be a data.frame for mixed data.")
+  }
   if(methods::is(df,"data.frame")){
     # remove geo in case
     if(methods::is(df,"sf")){
       df= sf::st_drop_geometry(df)
     }
+    if(method$method=="bayes_mixed"){
+      cat_feats = unlist(lapply(df,is.factor))
+      df_cat=df[,cat_feats]
+      df_cat=do.call(cbind,lapply(colnames(df_cat),\(col){as.integer(df_cat[[col]])-1}))
+    }
     # select only numeric features
     num_feats = unlist(lapply(df,is.numeric))
     if(sum(num_feats)!=ncol(df)){
-      warning("Some features were not numeric and have been removed from the clustering.",call. = FALSE)
+      if(method$method!="bayes_mixed"){
+          warning("Some features were not numeric and have been removed from the clustering.",call. = FALSE)  
+      }
       df=df[,num_feats]
     }
   }
@@ -395,6 +387,12 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw",display
   nb_c = lapply(adjacencies_list,\(nei){nei-1})
   
   
+  if(method$method=="bayes_mixed"){
+    formated_data = list(data_cont=df_scaled,data_disc=df_cat)
+  }else{
+    formated_data = list(data=df_scaled)
+  }
+  
   # check for muliple components
   G=igraph::graph_from_adj_list(adjacencies_list)
   comp=igraph::components(G)
@@ -403,24 +401,24 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw",display
   }
   # run the algorithm
   if(method$method %in% c("ward","centroid","median","chisq")){
-    res=hclustcc_cpp(nb_c,df_scaled,method,display_progress)
-    # convert merge mat in hclust format
-    V = nrow(res$data);
-    merge_mat = apply(res$merge,2,function(col){ifelse(col<V,-(col+1),col-V+1)})
-    # format the results in hclust form
-    hc_res = list(merge=merge_mat,
-                  Ll = res$Ll,
-                  height=compute_height(res$Ll),
-                  order=order_tree(merge_mat,nrow(res$merge)),
-                  labels=(rownames(df)),
-                  call=sys.call(),
-                  method=method$method,
-                  dist.method="euclidean",
-                  data=res$data,
-                  adjacencies_list=adjacencies_list,
-                  centers=res$centers)
+    print("method disabled");
+    # res=hclustcc_cpp(nb_c,list(data=df_scaled),method,display_progress)
+    # # convert merge mat in hclust format
+    # V = nrow(res$data);
+    # merge_mat = apply(res$merge,2,function(col){ifelse(col<V,-(col+1),col-V+1)})
+    # # format the results in hclust form
+    # hc_res = list(merge=merge_mat,
+    #               Ll = res$Ll,
+    #               height=compute_height(res$Ll),
+    #               order=order_tree(merge_mat,nrow(res$merge)),
+    #               labels=(rownames(df)),
+    #               call=sys.call(),
+    #               method=method$method,
+    #               dist.method="euclidean",
+    #               data=res$data,
+    #               adjacencies_list=adjacencies_list) #,centers=res$centers)
   }else{
-    res=bayesian_hclustcc_cpp(nb_c,df_scaled,method,display_progress,method$approx)
+    res=bayesian_hclustcc_cpp(nb_c, formated_data,method,display_progress,method$approx)
     
     # complete inter prior with linear slope if needed
     miss_prior = is.na(res$PriorInter)
@@ -432,24 +430,23 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw",display
     ptree = (res$PriorInter+res$PriorIntra-res$PriorInter[1])
     Llf = res$Ll + ptree +res$PriorK;
     # convert merge mat in hclust format
-    V = nrow(res$data);
+    V = length(nb_c);
     merge_mat = apply(res$merge,2,function(col){ifelse(col<V,-(col+1),col-V+1)})
     # format the results in hclust form
     hc_res = list(merge=merge_mat,
                   Ll = -Llf,
                   Kunif = length(Llf)-which.max(Llf)+1,
-                  height=compute_height(-Llf),
+                  height=gtclust:::compute_height(-Llf),
                   PriorIntra = res$PriorIntra,
                   PriorInter = res$PriorInter,
                   PriorK = res$PriorK,
-                  order=order_tree(merge_mat,nrow(res$merge)),
+                  order=gtclust:::order_tree(merge_mat,nrow(res$merge)),
                   labels=(rownames(df)),
                   call=sys.call(),
                   method=method$method,
                   dist.method="euclidean",
-                  data=res$data,
-                  adjacencies_list=adjacencies_list,
-                  centers=res$centers)
+                  data=df_scaled,
+                  adjacencies_list=adjacencies_list)#,centers=res$centers)
   }
   
 
@@ -614,6 +611,18 @@ gtmethod_bayes_mom = function(beta = 1,approx=FALSE){
 #' @export
 gtmethod_bayes_dgmm = function(tau = 0.01, kappa = 1, beta = NaN, mu = as.matrix(NaN),approx=FALSE){
   structure(list(method = "bayes_dgmm",tau=tau,kappa=kappa,beta = beta,mu=mu,approx=approx), 
+            class = c("gtmethod","bayesian_gtmethod"))
+}
+
+
+#' @param tau Prior parameter (inverse variance), (default 0.01)
+#' @param kappa Prior parameter (gamma shape), (default to 1)
+#' @param beta Prior parameter (gamma rate), (default to NaN, in this case beta will be estimated from data as 0.1 time the mean of X columns variances)
+#' @param mu Prior for the means (vector of size D), (default to NaN, in this case mu will be estimated from data as the mean of X)
+#' @describeIn gtmethod bayesian mxiture for mixed data LDA + diagonal gaussian mixture model
+#' @export
+gtmethod_bayes_mixed = function(tau = 0.01, kappa = 1, beta = NaN, mu = as.matrix(NaN),approx=FALSE){
+  structure(list(method = "bayes_mixed",tau=tau,kappa=kappa,beta = beta,mu=mu,approx=approx), 
             class = c("gtmethod","bayesian_gtmethod"))
 }
 
