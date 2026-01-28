@@ -207,6 +207,22 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// bayesian_hclustcc_restart_cpp
+List bayesian_hclustcc_restart_cpp(const List nb, const List X, NumericMatrix starting_merge, List method_obj, bool display_progress, bool approx);
+RcppExport SEXP _gtclust_bayesian_hclustcc_restart_cpp(SEXP nbSEXP, SEXP XSEXP, SEXP starting_mergeSEXP, SEXP method_objSEXP, SEXP display_progressSEXP, SEXP approxSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const List >::type nb(nbSEXP);
+    Rcpp::traits::input_parameter< const List >::type X(XSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type starting_merge(starting_mergeSEXP);
+    Rcpp::traits::input_parameter< List >::type method_obj(method_objSEXP);
+    Rcpp::traits::input_parameter< bool >::type display_progress(display_progressSEXP);
+    Rcpp::traits::input_parameter< bool >::type approx(approxSEXP);
+    rcpp_result_gen = Rcpp::wrap(bayesian_hclustcc_restart_cpp(nb, X, starting_merge, method_obj, display_progress, approx));
+    return rcpp_result_gen;
+END_RCPP
+}
 // bayesian_hclustcc_sbm_cpp
 List bayesian_hclustcc_sbm_cpp(const List nb, const NumericMatrix& graph_triplet, bool display_progress, bool approx, double lambda_in, double lambda_ext);
 RcppExport SEXP _gtclust_bayesian_hclustcc_sbm_cpp(SEXP nbSEXP, SEXP graph_tripletSEXP, SEXP display_progressSEXP, SEXP approxSEXP, SEXP lambda_inSEXP, SEXP lambda_extSEXP) {
@@ -239,6 +255,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_gtclust_delta_merge_post", (DL_FUNC) &_gtclust_delta_merge_post, 3},
     {"_gtclust_log_mvn_pdf", (DL_FUNC) &_gtclust_log_mvn_pdf, 3},
     {"_gtclust_bayesian_hclustcc_cpp", (DL_FUNC) &_gtclust_bayesian_hclustcc_cpp, 5},
+    {"_gtclust_bayesian_hclustcc_restart_cpp", (DL_FUNC) &_gtclust_bayesian_hclustcc_restart_cpp, 6},
     {"_gtclust_bayesian_hclustcc_sbm_cpp", (DL_FUNC) &_gtclust_bayesian_hclustcc_sbm_cpp, 6},
     {NULL, NULL, 0}
 };

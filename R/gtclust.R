@@ -456,6 +456,156 @@ gtclust_graph = function(adjacencies_list,df,method="ward",scaling="raw",display
 }
 
 
+
+#' @title Hierarchical clustering with contiguity constraints
+#'
+#' @description This function take an data.frame and performs hierarchical clustering with contiguity 
+#' constraints using a graph describing the contiguity (provided )
+#' @param adjacencies_list graph describing the contiguity between the rows of df as a list of adjacencies 
+#' @param df a data.frame with numeric columns
+#' @param merge_init merge matrix to apply as initialisation cbased indices 
+#' @param method linkage criterion in ward (default) or average, median
+#' @param scaling default scaling of the features in zscore or raw (i.e. no scaling, the default)
+#' @param display_progress boolean to set progression bar
+#' @return an \code{\link[stats]{hclust}} like object with additional slots
+#' \describe{
+#'   \item{data}{The numeric data (eventually scaled) used for the clustering}
+#'   \item{centers}{The protoypes of each tree nodes}
+#' }
+#' @export
+gtclust_graph_restart = function(adjacencies_list,df,merge_init,method="ward",scaling="raw",display_progress=FALSE){
+  
+  
+  if(is.character(method) && !(method %in% c("ward","centroid","median","chisq","bayes_mom","bayes_dgmm","bayes_dirichlet"))){
+    stop("'method' not recognized")
+  }
+  
+  
+  if (is.character(method)) 
+    method <- get(paste0("gtmethod_",method), mode = "function", envir = parent.frame())
+  if (is.function(method)) 
+    method <- method()
+  if (is.null(method$method)) {
+    print(method)
+    stop("'method' not recognized")
+  }
+  
+  if(!(scaling %in% c("zscore","raw"))){
+    stop("The scaling argument must be zscore or raw.")
+  }
+  if(!(methods::is(df,"data.frame")|methods::is(df,"matrix"))){
+    stop("df must be a data.frame or a matrix")
+  }
+  if(methods::is(df,"matrix") & !is.numeric(df)){
+    stop("df must be numeric.")
+  }
+  if(method$method=="bayes_mixed" & !methods::is(df,"data.frame")){
+    stop("df must be a data.frame for mixed data.")
+  }
+  if(methods::is(df,"data.frame")){
+    # remove geo in case
+    if(methods::is(df,"sf")){
+      df= sf::st_drop_geometry(df)
+    }
+    if(method$method=="bayes_mixed"){
+      cat_feats = unlist(lapply(df,is.factor))
+      df_cat=df[,cat_feats]
+      df_cat=do.call(cbind,lapply(colnames(df_cat),\(col){as.integer(df_cat[[col]])-1}))
+    }
+    # select only numeric features
+    num_feats = unlist(lapply(df,is.numeric))
+    if(sum(num_feats)!=ncol(df)){
+      if(method$method!="bayes_mixed"){
+        warning("Some features were not numeric and have been removed from the clustering.",call. = FALSE)  
+      }
+      df=df[,num_feats]
+    }
+  }
+  
+  # check for missing values
+  if(sum(is.na(df))>0){
+    stop("Some regions have missing values and missing values are not allowed.",call. = FALSE)
+  }
+  
+  # scales
+  if(scaling=="zscore"){
+    df_scaled = apply(df,2,\(col){(col-mean(col))/stats::sd(col)})
+  }else{
+    df_scaled = as.matrix(df)
+  }
+  
+  nb_c = lapply(adjacencies_list,\(nei){nei-1})
+  
+  
+  if(method$method=="bayes_mixed"){
+    formated_data = list(data_cont=df_scaled,data_disc=df_cat)
+  }else{
+    formated_data = list(data=df_scaled)
+  }
+  
+  # check for muliple components
+  G=igraph::graph_from_adj_list(adjacencies_list)
+  comp=igraph::components(G)
+  if(comp$no>1){
+    stop("The graph is not connected, several components found.",call. = FALSE)
+  }
+  # run the algorithm
+  if(method$method %in% c("ward","centroid","median","chisq")){
+    print("method disabled");
+    # res=hclustcc_cpp(nb_c,list(data=df_scaled),method,display_progress)
+    # # convert merge mat in hclust format
+    # V = nrow(res$data);
+    # merge_mat = apply(res$merge,2,function(col){ifelse(col<V,-(col+1),col-V+1)})
+    # # format the results in hclust form
+    # hc_res = list(merge=merge_mat,
+    #               Ll = res$Ll,
+    #               height=compute_height(res$Ll),
+    #               order=order_tree(merge_mat,nrow(res$merge)),
+    #               labels=(rownames(df)),
+    #               call=sys.call(),
+    #               method=method$method,
+    #               dist.method="euclidean",
+    #               data=res$data,
+    #               adjacencies_list=adjacencies_list) #,centers=res$centers)
+  }else{
+    res=bayesian_hclustcc_restart_cpp(nb_c, formated_data,merge_init,method,display_progress,method$approx)
+    
+    # complete inter prior with linear slope if needed
+    miss_prior = is.na(res$PriorInter)
+    if(sum(miss_prior)>0){
+      nbmiss = max(which(miss_prior))
+      res$PriorInter[miss_prior]=seq(res$PriorIntra[length(res$PriorIntra)],res$PriorInter[nbmiss+1],length.out=nbmiss)
+    }
+    # compute the spanning tree prior term
+    ptree = (res$PriorInter+res$PriorIntra-res$PriorInter[1])
+    Llf = res$Ll + ptree +res$PriorK;
+    # convert merge mat in hclust format
+    V = length(nb_c);
+    merge_mat = apply(res$merge,2,function(col){ifelse(col<V,-(col+1),col-V+1)})
+    # format the results in hclust form
+    hc_res = list(merge=merge_mat,
+                  Ll = -Llf,
+                  Kunif = length(Llf)-which.max(Llf)+1,
+                  height=gtclust:::compute_height(-Llf),
+                  PriorIntra = res$PriorIntra,
+                  PriorInter = res$PriorInter,
+                  PriorK = res$PriorK,
+                  order=gtclust:::order_tree(merge_mat,nrow(res$merge)),
+                  labels=(rownames(df)),
+                  call=sys.call(),
+                  method=method$method,
+                  dist.method="euclidean",
+                  data=df_scaled,
+                  adjacencies_list=adjacencies_list)#,centers=res$centers)
+  }
+  
+  
+  class(hc_res)  <- c("gtclust","hclust")
+  
+  hc_res
+}
+
+
 #' @title Cut a Geograpĥic Tree into Groups of Data and return an sf data.frame 
 #'
 #' @description Cuts a tree, e.g., as resulting from geohclust_poly, into several groups either by specifying the desired number(s) of groups or the cut height(s).
