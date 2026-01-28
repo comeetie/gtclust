@@ -57,6 +57,10 @@ bayesian_hclustcc_cpp <- function(nb, X, method_obj, display_progress, approx) {
     .Call(`_gtclust_bayesian_hclustcc_cpp`, nb, X, method_obj, display_progress, approx)
 }
 
+bayesian_hclustcc_restart_cpp <- function(nb, X, starting_merge, method_obj, display_progress, approx) {
+    .Call(`_gtclust_bayesian_hclustcc_restart_cpp`, nb, X, starting_merge, method_obj, display_progress, approx)
+}
+
 bayesian_hclustcc_sbm_cpp <- function(nb, graph_triplet, display_progress, approx, lambda_in, lambda_ext) {
     .Call(`_gtclust_bayesian_hclustcc_sbm_cpp`, nb, graph_triplet, display_progress, approx, lambda_in, lambda_ext)
 }
